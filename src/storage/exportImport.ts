@@ -1,0 +1,120 @@
+import { isISODate } from '../domain/date'
+import { emptyDay } from '../domain/day'
+import type { ActivityType, Day, Project, Settings } from '../domain/types'
+import { db } from './db'
+import { defaultSettings } from './seed'
+
+/**
+ * Version des Sicherungsformats. Bei jeder Änderung am Datenmodell erhöhen und
+ * in MIGRATIONS eine Funktion „von Version n auf n+1“ ergänzen.
+ */
+export const SCHEMA_VERSION = 1
+
+const MIGRATIONS: Record<number, (data: Record<string, unknown>) => Record<string, unknown>> = {
+  // Beispiel für später:
+  // 1: (data) => ({ ...data, days: (data.days as any[]).map((d) => ({ ...d, neuesFeld: null })) }),
+}
+
+export interface BackupData {
+  projects: Project[]
+  activityTypes: ActivityType[]
+  days: Day[]
+  settings: Settings
+}
+
+export interface BackupFile {
+  app: 'stundenbogen'
+  schemaVersion: number
+  exportedAt: string
+  data: BackupData
+}
+
+export class ImportError extends Error {}
+
+export async function collectBackup(): Promise<BackupFile> {
+  return db.transaction('r', db.projects, db.activityTypes, db.days, db.settings, async () => ({
+    app: 'stundenbogen' as const,
+    schemaVersion: SCHEMA_VERSION,
+    exportedAt: new Date().toISOString(),
+    data: {
+      projects: await db.projects.orderBy('sortOrder').toArray(),
+      activityTypes: await db.activityTypes.orderBy('sortOrder').toArray(),
+      days: await db.days.orderBy('date').toArray(),
+      settings: (await db.settings.get('settings')) ?? defaultSettings(),
+    },
+  }))
+}
+
+export function serializeBackup(file: BackupFile): string {
+  return JSON.stringify(file, null, 1)
+}
+
+export function backupFileName(date: string): string {
+  return `stundenbogen-${date}.json`
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
+function asArray(v: unknown, what: string): Record<string, unknown>[] {
+  if (!Array.isArray(v) || !v.every(isRecord)) throw new ImportError(`Ungültige Sicherung: „${what}“ fehlt oder ist beschädigt.`)
+  return v
+}
+
+/** Liest eine Sicherungsdatei, prüft sie und bringt sie auf den aktuellen Stand. */
+export function parseBackup(text: string): BackupFile {
+  let raw: unknown
+  try {
+    raw = JSON.parse(text)
+  } catch {
+    throw new ImportError('Die Datei ist keine gültige JSON-Datei.')
+  }
+  if (!isRecord(raw) || raw.app !== 'stundenbogen') {
+    throw new ImportError('Das ist keine Sicherung dieser App.')
+  }
+  const version = raw.schemaVersion
+  if (typeof version !== 'number' || !Number.isInteger(version) || version < 1) {
+    throw new ImportError('Die Sicherung hat keine gültige Versionsnummer.')
+  }
+  if (version > SCHEMA_VERSION) {
+    throw new ImportError('Die Sicherung stammt aus einer neueren App-Version. Bitte die Seite neu laden.')
+  }
+  if (!isRecord(raw.data)) throw new ImportError('Ungültige Sicherung: Daten fehlen.')
+
+  let data = raw.data
+  for (let v = version; v < SCHEMA_VERSION; v++) data = MIGRATIONS[v](data)
+
+  const projects = asArray(data.projects, 'Projekte').map((p): Project => {
+    if (typeof p.id !== 'string' || typeof p.name !== 'string') throw new ImportError('Ungültiges Projekt in der Sicherung.')
+    return { code: '', color: '#2563eb', active: true, sortOrder: 0, createdAt: '', ...p } as Project
+  })
+  const activityTypes = asArray(data.activityTypes, 'Tätigkeitsarten').map((a): ActivityType => {
+    if (typeof a.id !== 'string' || typeof a.name !== 'string') throw new ImportError('Ungültige Tätigkeitsart in der Sicherung.')
+    return { active: true, sortOrder: 0, ...a } as ActivityType
+  })
+  const days = asArray(data.days, 'Tage').map((d): Day => {
+    if (typeof d.date !== 'string' || !isISODate(d.date)) throw new ImportError('Ungültiger Tag in der Sicherung.')
+    return { ...emptyDay(d.date), ...d } as Day
+  })
+  const settings = { ...defaultSettings(), ...(isRecord(data.settings) ? data.settings : {}), id: 'settings' } as Settings
+
+  return {
+    app: 'stundenbogen',
+    schemaVersion: SCHEMA_VERSION,
+    exportedAt: typeof raw.exportedAt === 'string' ? raw.exportedAt : '',
+    data: { projects, activityTypes, days, settings },
+  }
+}
+
+/** Ersetzt ALLE Daten durch den Inhalt der Sicherung. */
+export async function restoreBackup(file: BackupFile): Promise<void> {
+  const { projects, activityTypes, days, settings } = file.data
+  await db.transaction('rw', db.projects, db.activityTypes, db.days, db.settings, async () => {
+    await Promise.all([db.projects.clear(), db.activityTypes.clear(), db.days.clear(), db.settings.clear()])
+    await db.projects.bulkPut(projects)
+    await db.activityTypes.bulkPut(activityTypes)
+    await db.days.bulkPut(days)
+    await db.settings.put(settings)
+  })
+}

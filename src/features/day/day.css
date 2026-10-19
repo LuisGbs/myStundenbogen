@@ -1,0 +1,182 @@
+.day-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.day-nav__date {
+  min-width: 11.5rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.day-nav__spacer {
+  flex: 1;
+}
+
+.day-nav__picker {
+  width: 9.5rem;
+}
+
+/* ---------- Stempelzeiten ---------- */
+.blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.block-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.block-row__dash {
+  color: var(--text-muted);
+}
+
+.block-row__duration {
+  min-width: 6.5rem;
+  font-weight: 600;
+}
+
+.block-row__duration.is-running {
+  color: var(--ok);
+}
+
+.block-row.has-issue .input {
+  border-color: var(--warn);
+}
+
+.block-row__issue {
+  flex-basis: 100%;
+  font-size: 0.82rem;
+  color: var(--warn);
+}
+
+.blocks__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
+}
+
+.total-editor .muted {
+  margin: 0;
+}
+
+.worked-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.worked-total strong {
+  font-size: 1.5rem;
+  color: var(--text);
+}
+
+/* ---------- Projektzeilen ---------- */
+.alloc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.85rem;
+}
+
+.alloc-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.45rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+  background: var(--surface-2);
+}
+
+.alloc-row__project {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex: 1 1 12rem;
+  min-width: 10rem;
+}
+
+.alloc-row__project .input {
+  flex: 1;
+  width: 100%;
+}
+
+.input--amount.is-rest::placeholder {
+  color: var(--text-muted);
+  font-style: italic;
+  opacity: 1;
+}
+
+.alloc-row__result {
+  width: 4.2rem;
+  text-align: right;
+  font-weight: 650;
+  font-size: 1.05rem;
+}
+
+.alloc-add {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.alloc-add__select {
+  width: 15rem;
+}
+
+/* ---------- Status ---------- */
+.day-status {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border);
+}
+
+.day-status p {
+  margin: 0.5rem 0 0;
+  font-weight: 550;
+}
+
+.day-status--ok .progress__bar {
+  background: var(--ok);
+}
+
+.day-status--ok p {
+  color: var(--ok);
+}
+
+.day-status--open .progress__bar {
+  background: var(--warn);
+}
+
+.day-status--open p {
+  color: var(--warn);
+}
+
+.day-status--over .progress__bar {
+  background: var(--danger);
+}
+
+.day-status--over p {
+  color: var(--danger);
+}
+
+.day-status--empty p,
+.day-status--no-total p {
+  color: var(--text-muted);
+  font-weight: 450;
+}
