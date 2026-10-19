@@ -107,6 +107,35 @@ test('Projekt anlegen → Zeit stempeln → verteilen → Monat → Export/Impor
   expect(foreignRequests).toEqual([])
 })
 
+test('„%“ klicken und sofort „50“ tippen ergibt 50 %, nicht 50 Stunden', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Neu beginnen' }).click()
+  await page.getByRole('link', { name: 'Projekte', exact: true }).click()
+  await addProject(page, 'Alpha')
+  await page.goto(`/#/tag/${DATE}`)
+  await page.getByRole('radio', { name: 'Gesamtzeit' }).click()
+  await page.getByLabel('Gesamte Arbeitszeit').fill('8:18')
+  await page.getByLabel('Gesamte Arbeitszeit').press('Enter')
+  await page.getByLabel('Projekt hinzufügen').selectOption({ label: 'Alpha' })
+  const row = page.getByTestId('alloc-row').first()
+  await expect(row.getByTestId('alloc-result')).toHaveText('8:18')
+
+  // Klick und Eingabe im selben Augenblick – bevor die Modus-Änderung gespeichert ist.
+  await page.evaluate(() => {
+    const r = document.querySelector('[data-testid="alloc-row"]')!
+    const percent = [...r.querySelectorAll<HTMLButtonElement>('button[role="radio"]')].find((b) => b.textContent === '%')!
+    percent.click()
+    const input = r.querySelector<HTMLInputElement>('input[aria-label="Dauer oder Anteil"]')!
+    input.focus()
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '50')
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+  })
+
+  await expect(row.getByTestId('alloc-result')).toHaveText('4:09')
+  await expect(row.getByLabel('Dauer oder Anteil')).toHaveValue('50 %')
+})
+
 async function importFile(page: Page, content: string) {
   const chooserPromise = page.waitForEvent('filechooser')
   await page.getByRole('button', { name: 'Sicherung importieren …' }).click()

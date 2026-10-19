@@ -1,3 +1,4 @@
+import { formatDuration, formatPercent, parseAmount } from './duration'
 import type { Allocation, AllocationMode, FillStrategy, Minutes } from './types'
 
 /**
@@ -118,6 +119,38 @@ export function changeAllocationMode(
   const percent =
     total && resolvedMinutes !== null ? Math.round((resolvedMinutes / total) * 1000) / 10 : 0
   return { ...allocation, mode, value: percent }
+}
+
+/**
+ * Wendet eine Eingabe aus dem Wert-Feld einer Zeile an ('1:30', '50%', 'rest', '' …).
+ * Im %-Modus gilt eine nackte Zahl als Prozent („50“ = 50 %). null = ungültige Eingabe.
+ *
+ * Muss gegen den zuletzt gespeicherten Stand der Zeile laufen (innerhalb von
+ * updateDay), damit ein eben erst umgeschalteter Modus schon berücksichtigt ist.
+ */
+export function applyAmountInput(allocation: Allocation, text: string): Allocation | null {
+  const trimmed = text.trim()
+  if (allocation.mode === 'percent' && /^\d+(?:[.,]\d+)?$/.test(trimmed)) {
+    return { ...allocation, value: Number(trimmed.replace(',', '.')) }
+  }
+  if (trimmed === '') return allocation.mode === 'rest' ? allocation : { ...allocation, value: 0 }
+  const parsed = parseAmount(trimmed)
+  if (!parsed) return null
+  switch (parsed.kind) {
+    case 'rest':
+      return { ...allocation, mode: 'rest', value: 0 }
+    case 'percent':
+      return { ...allocation, mode: 'percent', value: parsed.percent }
+    case 'duration':
+      return { ...allocation, mode: 'duration', value: parsed.minutes }
+  }
+}
+
+/** Anzeigetext des Wert-Felds einer Zeile: '1:30', '50 %' oder '' bei Rest. */
+export function formatAllocationValue(allocation: Allocation): string {
+  if (allocation.mode === 'duration') return formatDuration(allocation.value)
+  if (allocation.mode === 'percent') return formatPercent(allocation.value)
+  return ''
 }
 
 /**

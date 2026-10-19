@@ -1,11 +1,13 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import {
+  applyAmountInput,
   changeAllocationMode,
+  formatAllocationValue,
   modeForNewAllocation,
   type AllocationResult,
 } from '../../domain/allocation'
-import { formatDuration, formatPercent, parseAmount } from '../../domain/duration'
+import { formatDuration } from '../../domain/duration'
 import { newId } from '../../domain/id'
 import type { ActivityType, Allocation, AllocationMode, Day, Minutes, Project, Settings } from '../../domain/types'
 import { Icon } from '../../components/Icon'
@@ -45,8 +47,9 @@ export function AllocationSection({ day, result, projects, activityTypes, settin
     ])
     setFocusId(id)
   }
-  const updateRow = (id: string, patch: Partial<Allocation>) =>
-    setAllocations((list) => list.map((a) => (a.id === id ? { ...a, ...patch } : a)))
+  // Änderungen laufen immer gegen den zuletzt gespeicherten Stand der Zeile (nicht den angezeigten).
+  const changeRow = (id: string, fn: (current: Allocation) => Allocation) =>
+    setAllocations((list) => list.map((a) => (a.id === id ? fn(a) : a)))
   const removeRow = (id: string) => setAllocations((list) => list.filter((a) => a.id !== id))
 
   // Schnellauswahl: zuletzt genutzte Projekte, aufgefüllt mit weiteren aktiven Projekten.
@@ -77,7 +80,7 @@ export function AllocationSection({ day, result, projects, activityTypes, settin
               projects={projects}
               activityTypes={activityTypes}
               autoFocus={a.id === focusId}
-              onUpdate={(patch) => updateRow(a.id, patch)}
+              onChange={(fn) => changeRow(a.id, fn)}
               onRemove={() => removeRow(a.id)}
             />
           ))}
@@ -138,46 +141,22 @@ interface RowProps {
   projects: Project[]
   activityTypes: ActivityType[]
   autoFocus: boolean
-  onUpdate: (patch: Partial<Allocation>) => void
+  onChange: (fn: (current: Allocation) => Allocation) => void
   onRemove: () => void
 }
 
-function AllocationRow({ allocation, minutes, total, projects, activityTypes, autoFocus, onUpdate, onRemove }: RowProps) {
+function AllocationRow({ allocation, minutes, total, projects, activityTypes, autoFocus, onChange, onRemove }: RowProps) {
   const project = projects.find((p) => p.id === allocation.projectId)
   const projectOptions = projects.filter((p) => p.active || p.id === allocation.projectId)
   const typeOptions = activityTypes.filter((a) => a.active || a.id === allocation.activityTypeId)
-  const valueText =
-    allocation.mode === 'duration'
-      ? formatDuration(allocation.value)
-      : allocation.mode === 'percent'
-        ? formatPercent(allocation.value)
-        : ''
 
   const commitValue = (text: string): string | null => {
-    const trimmed = text.trim()
-    // Im %-Modus ist eine nackte Zahl ein Prozentwert („50“ = 50 %).
-    if (allocation.mode === 'percent' && /^\d+(?:[.,]\d+)?$/.test(trimmed)) {
-      const percent = Number(trimmed.replace(',', '.'))
-      onUpdate({ value: percent })
-      return formatPercent(percent)
-    }
-    if (trimmed === '') {
-      if (allocation.mode === 'rest') return ''
-      onUpdate({ value: 0 })
-      return allocation.mode === 'percent' ? formatPercent(0) : formatDuration(0)
-    }
-    const parsed = parseAmount(trimmed)
-    if (!parsed) return null
-    if (parsed.kind === 'rest') {
-      onUpdate({ mode: 'rest', value: 0 })
-      return ''
-    }
-    if (parsed.kind === 'percent') {
-      onUpdate({ mode: 'percent', value: parsed.percent })
-      return formatPercent(parsed.percent)
-    }
-    onUpdate({ mode: 'duration', value: parsed.minutes })
-    return formatDuration(parsed.minutes)
+    const preview = applyAmountInput(allocation, text)
+    if (!preview) return null
+    // Gegen den gespeicherten Stand auswerten: Wurde gerade erst auf „%“ umgeschaltet,
+    // ist das dort schon enthalten, in `allocation` (Anzeige) evtl. noch nicht.
+    onChange((current) => applyAmountInput(current, text) ?? current)
+    return formatAllocationValue(preview)
   }
 
   return (
@@ -188,7 +167,10 @@ function AllocationRow({ allocation, minutes, total, projects, activityTypes, au
           className="input"
           aria-label="Projekt"
           value={allocation.projectId}
-          onChange={(e) => onUpdate({ projectId: e.target.value })}
+          onChange={(e) => {
+            const projectId = e.target.value
+            onChange((current) => ({ ...current, projectId }))
+          }}
         >
           {!project && <option value={allocation.projectId}>Unbekanntes Projekt</option>}
           {projectOptions.map((p) => (
@@ -205,14 +187,17 @@ function AllocationRow({ allocation, minutes, total, projects, activityTypes, au
           ariaLabel="Tätigkeitsart"
           options={typeOptions.map((a) => ({ value: a.id, label: a.name }))}
           value={allocation.activityTypeId}
-          onChange={(activityTypeId) => onUpdate({ activityTypeId })}
+          onChange={(activityTypeId) => onChange((current) => ({ ...current, activityTypeId }))}
         />
       ) : (
         <select
           className="input"
           aria-label="Tätigkeitsart"
           value={allocation.activityTypeId}
-          onChange={(e) => onUpdate({ activityTypeId: e.target.value })}
+          onChange={(e) => {
+            const activityTypeId = e.target.value
+            onChange((current) => ({ ...current, activityTypeId }))
+          }}
         >
           {typeOptions.map((a) => (
             <option key={a.id} value={a.id}>
@@ -227,7 +212,7 @@ function AllocationRow({ allocation, minutes, total, projects, activityTypes, au
         ariaLabel="Eingabeart"
         options={MODE_OPTIONS}
         value={allocation.mode}
-        onChange={(mode) => onUpdate(changeAllocationMode(allocation, mode, minutes, total))}
+        onChange={(mode) => onChange((current) => changeAllocationMode(current, mode, minutes, total))}
       />
 
       {/* Auch Rest-Zeilen haben ein Feld: Tippen von „1:00“ oder „50%“ wechselt direkt den Modus. */}
@@ -236,7 +221,7 @@ function AllocationRow({ allocation, minutes, total, projects, activityTypes, au
         aria-label="Dauer oder Anteil"
         placeholder={allocation.mode === 'rest' ? 'Rest' : allocation.mode === 'percent' ? '50 %' : '1:30'}
         autoFocus={autoFocus}
-        value={valueText}
+        value={formatAllocationValue(allocation)}
         onCommit={commitValue}
       />
 

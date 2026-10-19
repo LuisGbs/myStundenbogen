@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  applyAmountInput,
   applyDefaultFill,
   changeAllocationMode,
+  formatAllocationValue,
   modeForNewAllocation,
   resolveAllocations,
   roundPreservingSum,
@@ -106,6 +108,35 @@ describe('changeAllocationMode', () => {
 
   it('ohne Tageszeit wird Prozent mit 0 begonnen', () => {
     expect(changeAllocationMode(row('a', 'duration', 60), 'percent', 60, null)).toMatchObject({ value: 0 })
+  })
+})
+
+describe('applyAmountInput', () => {
+  it('nackte Zahl im %-Modus ist Prozent, sonst Stunden', () => {
+    expect(applyAmountInput(row('a', 'percent', 100), '50')).toMatchObject({ mode: 'percent', value: 50 })
+    expect(applyAmountInput(row('a', 'percent', 100), '33,3')).toMatchObject({ mode: 'percent', value: 33.3 })
+    expect(applyAmountInput(row('a', 'rest'), '2')).toMatchObject({ mode: 'duration', value: 120 })
+  })
+
+  it('wechselt den Modus passend zur Eingabe', () => {
+    expect(applyAmountInput(row('a', 'rest'), '50%')).toMatchObject({ mode: 'percent', value: 50 })
+    expect(applyAmountInput(row('a', 'percent', 50), '1:30')).toMatchObject({ mode: 'duration', value: 90 })
+    expect(applyAmountInput(row('a', 'duration', 60), 'rest')).toMatchObject({ mode: 'rest', value: 0 })
+  })
+
+  it('leeres Feld: Rest bleibt Rest, sonst 0', () => {
+    expect(applyAmountInput(row('a', 'rest'), ' ')).toMatchObject({ mode: 'rest' })
+    expect(applyAmountInput(row('a', 'duration', 60), '')).toMatchObject({ mode: 'duration', value: 0 })
+  })
+
+  it('lehnt Unsinn ab', () => {
+    expect(applyAmountInput(row('a', 'duration', 60), 'abc')).toBeNull()
+  })
+
+  it('formatiert den Feldinhalt je Modus', () => {
+    expect(formatAllocationValue(row('a', 'duration', 90))).toBe('1:30')
+    expect(formatAllocationValue(row('a', 'percent', 50))).toBe('50 %')
+    expect(formatAllocationValue(row('a', 'rest'))).toBe('')
   })
 })
 
