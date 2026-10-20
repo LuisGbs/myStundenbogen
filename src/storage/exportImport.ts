@@ -3,6 +3,7 @@ import { emptyDay } from '../domain/day'
 import type { ProjectListFile } from '../domain/projectTransfer'
 import type { ActivityType, Day, Project, Settings } from '../domain/types'
 import { db } from './db'
+import { clearHistory } from './history'
 import { defaultSettings } from './seed'
 
 /**
@@ -110,6 +111,7 @@ export function parseBackup(text: string): BackupFile {
 
 /** Ersetzt ALLE Daten durch den Inhalt der Sicherung. */
 export async function restoreBackup(file: BackupFile): Promise<void> {
+  clearHistory()
   const { projects, activityTypes, days, settings } = file.data
   await db.transaction('rw', db.projects, db.activityTypes, db.days, db.settings, async () => {
     await Promise.all([db.projects.clear(), db.activityTypes.clear(), db.days.clear(), db.settings.clear()])

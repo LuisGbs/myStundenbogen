@@ -1,4 +1,5 @@
 import { Icon } from './components/Icon'
+import { UndoRedo } from './components/UndoRedo'
 import { DayPage } from './features/day/DayPage'
 import { MonthPage } from './features/month/MonthPage'
 import { ProjectsPage } from './features/projects/ProjectsPage'
@@ -28,7 +29,10 @@ export default function App() {
           <NavLink route={route} page="projects" to={href.projects()} label="Projekte" />
           <NavLink route={route} page="settings" to={href.settings()} label="Einstellungen" />
         </nav>
-        <BackupIndicator />
+        <div className="topbar__end">
+          <UndoRedo />
+          <BackupIndicator />
+        </div>
       </header>
       <BackupBanner />
       <main className="main">

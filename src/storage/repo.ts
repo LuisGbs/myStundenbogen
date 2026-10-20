@@ -6,6 +6,7 @@ import { newId } from '../domain/id'
 import type { SharedActivityType, SharedProject } from '../domain/projectTransfer'
 import type { ActivityType, Day, ISODate, Project, Settings } from '../domain/types'
 import { db } from './db'
+import { recordDayChange } from './history'
 
 // ---------- Sortierung (gemeinsam für Projekte und Tätigkeitsarten) ----------
 
@@ -156,12 +157,24 @@ export async function deleteActivityType(id: string): Promise<boolean> {
  * Ein komplett leerer Tag wird gelöscht statt gespeichert.
  */
 export async function updateDay(date: ISODate, change: (day: Day) => Day): Promise<void> {
-  await db.transaction('rw', db.days, async () => {
-    const current = (await db.days.get(date)) ?? emptyDay(date)
-    const next = change(current)
-    if (isEmptyDay(next)) await db.days.delete(date)
-    else await db.days.put({ ...next, date, updatedAt: new Date().toISOString() })
+  const { before, after } = await db.transaction('rw', db.days, async () => {
+    const stored = (await db.days.get(date)) ?? null
+    const next = change(stored ?? emptyDay(date))
+    if (isEmptyDay(next)) {
+      await db.days.delete(date)
+      return { before: stored, after: null }
+    }
+    const saved = { ...next, date, updatedAt: new Date().toISOString() }
+    await db.days.put(saved)
+    return { before: stored, after: saved }
   })
+  // Für Rückgängig festhalten – nur, wenn sich inhaltlich etwas geändert hat.
+  if (!sameDayContent(before, after)) recordDayChange(date, before, after)
+}
+
+function sameDayContent(a: Day | null, b: Day | null): boolean {
+  if (!a || !b) return a === b
+  return JSON.stringify({ ...a, updatedAt: '' }) === JSON.stringify({ ...b, updatedAt: '' })
 }
 
 export function getDaysInRange(from: ISODate, to: ISODate): Promise<Day[]> {
