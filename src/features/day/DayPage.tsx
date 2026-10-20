@@ -1,5 +1,6 @@
 import { addDays, formatDateLong, isISODate, todayISO, weekStart } from '../../domain/date'
 import { emptyDay, summarizeDay } from '../../domain/day'
+import { endTimes, templateMinutes } from '../../domain/endTimes'
 import { expectedEnd, forecastWorked } from '../../domain/forecast'
 import { holidayOn, type Holiday } from '../../domain/holidays'
 import { withPlannedBlocks } from '../../domain/plan'
@@ -26,7 +27,7 @@ export function DayPage({ date }: { date: ISODate }) {
   const today = todayISO()
   const isToday = date === today
   const hasRunningBlock = !!stored?.blocks.some((b) => b.end === null)
-  const now = useNow(isToday && hasRunningBlock ? 20_000 : null)
+  const now = useNow(isToday ? (hasRunningBlock ? 20_000 : 60_000) : null)
   const monday = weekStart(date)
   const weekDays = useDaysInRange(monday, addDays(monday, 6))
 
@@ -54,6 +55,9 @@ export function DayPage({ date }: { date: ISODate }) {
       dayDiff: forecastWorked(day, expected.end) - target,
       week: weekSummary(weekDays, date, settings, today, expected.end),
     },
+    // Heute: bis wann für Soll bzw. Ziel (Vorlage, z.B. 9:00) arbeiten – mit 30 min Pause
+    endTimes: nowMinutes === null ? null : endTimes(stored ?? emptyDay(date), nowMinutes),
+    goal: templateMinutes(settings.dayTemplate ?? []),
   }
   // Erste Änderung übernimmt den geplanten Tag mit (Projekte hängen dann an den Plan-Blöcken).
   const change = (fn: (day: Day) => Day) => void updateDay(date, (d) => fn(withPlannedBlocks(d, settings)))
