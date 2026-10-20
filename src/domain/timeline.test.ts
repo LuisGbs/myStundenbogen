@@ -2,16 +2,17 @@ import { describe, expect, it } from 'vitest'
 import { resolveAllocations } from './allocation'
 import { emptyDay } from './day'
 import { workedMinutes } from './dayTotal'
-import { blockShareMinutes, layoutTimeline } from './timeline'
+import { insertSegment, layoutTimeline, maxSegmentMinutes, resizeSegment, snapMinutes, TOTAL_BLOCK_ID } from './timeline'
 import type { Allocation, Day } from './types'
 
-const alloc = (id: string, mode: Allocation['mode'], value = 0): Allocation => ({
+const alloc = (id: string, mode: Allocation['mode'], value = 0, blockId?: string): Allocation => ({
   id,
   projectId: id,
   activityTypeId: 'buero',
   mode,
   value,
   note: '',
+  ...(blockId ? { blockId } : {}),
 })
 
 function layout(day: Day, now: number | null = null) {
@@ -19,11 +20,12 @@ function layout(day: Day, now: number | null = null) {
   return layoutTimeline(day, result, now)
 }
 
+// Vormittag 07:45–12:00 (255 min), Nachmittag 12:45–16:48 (243 min)
 const twoBlocks: Day = {
   ...emptyDay('2026-10-14'),
   blocks: [
-    { id: 'b2', start: '12:45', end: '16:48' },
-    { id: 'b1', start: '07:45', end: '12:00' },
+    { id: 'pm', start: '12:45', end: '16:48' },
+    { id: 'am', start: '07:45', end: '12:00' },
   ],
 }
 
@@ -35,55 +37,111 @@ describe('layoutTimeline', () => {
 
   it('ordnet Blöcke nach Uhrzeit und erkennt die Pause', () => {
     const l = layout(twoBlocks)!
-    expect(l.mode).toBe('clock')
     expect([l.axisStart, l.axisEnd]).toEqual([465, 1008])
-    expect(l.blocks.map((b) => [b.index, b.label, b.minutes])).toEqual([
-      [1, '07:45–12:00', 255],
-      [0, '12:45–16:48', 243],
+    expect(l.blocks.map((b) => [b.id, b.index, b.label, b.minutes])).toEqual([
+      ['am', 1, '07:45–12:00', 255],
+      ['pm', 0, '12:45–16:48', 243],
     ])
-    expect(l.blocks[0].left).toBe(0)
-    expect(l.breaks).toHaveLength(1)
-    expect(l.breaks[0]).toMatchObject({ start: 720, end: 765 })
-    expect(l.breaks[0].left + l.breaks[0].width + l.blocks[1].width).toBeCloseTo(100)
+    expect(l.breaks).toEqual([expect.objectContaining({ start: 720, end: 765 })])
   })
 
-  it('zeigt die Verteilung als Anteile der Arbeitszeit, Rest = offen', () => {
-    const day = { ...twoBlocks, allocations: [alloc('a', 'duration', 200), alloc('b', 'duration', 120)] }
-    const l = layout(day)!
-    expect(l.segments.map((s) => [s.allocationId, s.start, s.minutes])).toEqual([
-      ['a', 0, 200],
-      ['b', 200, 120],
-      [null, 320, 178],
+  it('legt gebundene Segmente lückenlos hintereinander in ihren Block', () => {
+    const day = {
+      ...twoBlocks,
+      allocations: [alloc('orange', 'duration', 60, 'am'), alloc('violett', 'duration', 90, 'am'), alloc('nm', 'duration', 30, 'pm')],
+    }
+    const [am, pm] = layout(day)!.blocks
+    expect(am.segments.filter((s) => s.kind === 'bound').map((s) => [s.allocationId, s.start, s.end])).toEqual([
+      ['orange', 465, 525],
+      ['violett', 525, 615],
     ])
-    expect(l.segments[1].left).toBeCloseTo((200 / 498) * 100)
-    expect(l.segments.reduce((sum, s) => sum + s.width, 0)).toBeCloseTo(100)
+    expect(am.boundMinutes).toBe(150)
+    expect(am.segments[1].left).toBeCloseTo((60 / 255) * 100)
+    expect(pm.segments[0]).toMatchObject({ allocationId: 'nm', start: 765, end: 795 })
   })
 
-  it('überbucht: Balken wird auf die gebuchte Summe skaliert', () => {
-    const day = { ...twoBlocks, allocations: [alloc('a', 'duration', 600)] }
-    const l = layout(day)!
-    expect(l.segments).toEqual([expect.objectContaining({ allocationId: 'a', width: 100 })])
+  it('füllt freien Platz mit Rest-/%-Zeilen und offener Zeit', () => {
+    const day = { ...twoBlocks, allocations: [alloc('a', 'duration', 60, 'am'), alloc('r', 'percent', 50)] }
+    const [am, pm] = layout(day)!.blocks
+    // r = 50 % von 8:18 = 249 min: 195 im freien Vormittag, 54 am Nachmittag; Rest offen
+    expect(am.segments.map((s) => [s.kind, s.allocationId, s.minutes])).toEqual([
+      ['bound', 'a', 60],
+      ['floating', 'r', 195],
+    ])
+    expect(pm.segments.map((s) => [s.kind, s.allocationId, s.minutes])).toEqual([
+      ['floating', 'r', 54],
+      ['open', null, 189],
+    ])
   })
 
-  it('zeigt bei Gesamtzeit einen einzigen Balken', () => {
-    const day: Day = { ...emptyDay('2026-10-14'), timeMode: 'total', totalMinutes: 498, allocations: [alloc('a', 'rest')] }
-    const l = layout(day)!
-    expect(l.mode).toBe('total')
-    expect(l.blocks).toEqual([expect.objectContaining({ index: 0, minutes: 498, label: 'Gesamtzeit 8:18' })])
-    expect(l.segments).toEqual([expect.objectContaining({ allocationId: 'a', minutes: 498, left: 0, width: 100 })])
+  it('markiert Segmente, die nach dem Kürzen des Blocks nicht mehr hineinpassen', () => {
+    const day = { ...twoBlocks, allocations: [alloc('a', 'duration', 200, 'am'), alloc('b', 'duration', 100, 'am')] }
+    const am = layout(day)!.blocks[0]
+    expect(am.segments.map((s) => s.overflow)).toEqual([false, true])
+    expect(am.segments[1].left + am.segments[1].width).toBeCloseTo(100)
   })
 
-  it('zählt einen laufenden Block bis jetzt', () => {
-    const day: Day = { ...emptyDay('2026-10-14'), blocks: [{ id: 'x', start: '08:00', end: null }] }
-    const l = layout(day, 9 * 60)!
-    expect(l.blocks[0]).toMatchObject({ minutes: 60, running: true, label: '08:00–jetzt' })
+  it('Zeilen mit unbekanntem Block oder anderem Modus gelten als frei verteilt', () => {
+    const day = { ...twoBlocks, allocations: [alloc('a', 'duration', 60, 'geloescht'), alloc('b', 'rest', 0, 'am')] }
+    const am = layout(day)!.blocks[0]
+    expect(am.segments.map((s) => s.kind)).toEqual(['floating', 'floating'])
+  })
+
+  it('Gesamtzeit: ein Block mit fester ID', () => {
+    const day: Day = {
+      ...emptyDay('2026-10-14'),
+      timeMode: 'total',
+      totalMinutes: 498,
+      allocations: [alloc('a', 'duration', 120, TOTAL_BLOCK_ID)],
+    }
+    const [block] = layout(day)!.blocks
+    expect(block).toMatchObject({ id: TOTAL_BLOCK_ID, label: 'Gesamtzeit 8:18' })
+    expect(block.segments.map((s) => [s.kind, s.minutes])).toEqual([
+      ['bound', 120],
+      ['open', 378],
+    ])
   })
 })
 
-describe('blockShareMinutes', () => {
-  it('rechnet den Anteil in ganze Minuten um', () => {
-    expect(blockShareMinutes(255, 50)).toBe(128) // ½ von 4:15 = 2:08
-    expect(blockShareMinutes(255, 25)).toBe(64)
-    expect(blockShareMinutes(255, 100)).toBe(255)
+describe('Segmente ziehen', () => {
+  const allocations = [alloc('orange', 'duration', 60, 'am'), alloc('violett', 'duration', 90, 'am'), alloc('x', 'rest')]
+
+  it('Länger ziehen geht nur, bis das letzte Segment ans Blockende stößt', () => {
+    expect(maxSegmentMinutes(allocations, 'orange', 255)).toBe(165)
+    expect(resizeSegment(allocations, 'orange', 400, 255)[0].value).toBe(165)
+    // violett behält seine Länge
+    expect(resizeSegment(allocations, 'orange', 400, 255)[1].value).toBe(90)
+  })
+
+  it('Kürzer ziehen: nicht unter 5 Minuten', () => {
+    expect(resizeSegment(allocations, 'orange', 2, 255)[0].value).toBe(5)
+    expect(resizeSegment(allocations, 'orange', 30, 255)[0].value).toBe(30)
+  })
+
+  it('rastet auf 5 Minuten ein', () => {
+    expect(snapMinutes(62)).toBe(60)
+    expect(snapMinutes(63)).toBe(65)
+  })
+})
+
+describe('insertSegment', () => {
+  const block = { id: 'am', start: 465, minutes: 255 }
+  const base = { id: 'neu', projectId: 'p', activityTypeId: 'buero', note: '' }
+
+  it('bekommt den noch freien Platz des Blocks und landet hinter den vorhandenen Segmenten', () => {
+    const list = [alloc('a', 'duration', 60, 'am'), alloc('pm', 'duration', 30, 'pm'), alloc('r', 'rest')]
+    const next = insertSegment(list, block, 700, base)!
+    expect(next.map((a) => a.id)).toEqual(['a', 'neu', 'pm', 'r'])
+    expect(next[1]).toMatchObject({ mode: 'duration', value: 195, blockId: 'am' })
+  })
+
+  it('vor einem Segment abgelegt → wird davor eingefügt', () => {
+    const list = [alloc('a', 'duration', 60, 'am'), alloc('b', 'duration', 60, 'am')]
+    const next = insertSegment(list, block, 470, base)!
+    expect(next.map((a) => a.id)).toEqual(['neu', 'a', 'b'])
+  })
+
+  it('voller Block → null', () => {
+    expect(insertSegment([alloc('a', 'duration', 255, 'am')], block, 500, base)).toBeNull()
   })
 })

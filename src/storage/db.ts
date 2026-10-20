@@ -31,6 +31,8 @@ export class StundenbogenDB extends Dexie {
       settings: 'id',
       meta: 'key',
     })
+    // v2: Allocation.blockId (optional) – Zeitleisten-Segmente. Kein Index, keine Datenänderung nötig.
+    this.version(2).stores({})
   }
 }
 
