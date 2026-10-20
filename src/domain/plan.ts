@@ -48,10 +48,14 @@ export function hasPlannedBlocks(day: Day): boolean {
   return day.blocks.some((b) => b.planned)
 }
 
-/** Geänderte Uhrzeit → der Block gilt als echt gestempelt. */
+/**
+ * Geänderte Uhrzeit → der Block gilt als echt gestempelt. Mit einem Ende ist auch
+ * „voraussichtlich gehen um …“ erledigt.
+ */
 export function editBlock(block: TimeBlock, patch: Partial<Pick<TimeBlock, 'start' | 'end'>>): TimeBlock {
-  const { planned: _planned, ...rest } = block
-  return { ...rest, ...patch }
+  const { planned: _planned, expectedEnd, ...rest } = block
+  const next: TimeBlock = { ...rest, ...patch }
+  return next.end === null && expectedEnd ? { ...next, expectedEnd } : next
 }
 
 /** Den ganzen Plan als gestempelt übernehmen. */

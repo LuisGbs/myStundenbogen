@@ -3,6 +3,7 @@ import { analyzeBlocks, type BlockIssue } from '../../domain/dayTotal'
 import { clockToMinutes, formatDuration, formatSignedDuration, minutesToClock, nowClock, parseDuration } from '../../domain/duration'
 import { newId } from '../../domain/id'
 import { clockIn as clockInDay, confirmPlan, editBlock, hasPlannedBlocks } from '../../domain/plan'
+import type { ExpectedEnd } from '../../domain/forecast'
 import type { WeekSummary } from '../../domain/target'
 import type { Day, Minutes, TimeBlock, TimeMode } from '../../domain/types'
 import { Icon } from '../../components/Icon'
@@ -18,6 +19,13 @@ export interface DayBalance {
   recorded: boolean
   /** Woche Mo–So: gearbeitet, Soll, Höchstarbeitszeit. */
   week: WeekSummary
+  /** Eingestempelt: so sähe es aus, wenn man wie vorgesehen geht. */
+  forecast: {
+    expected: ExpectedEnd
+    worked: Minutes
+    dayDiff: Minutes
+    week: WeekSummary
+  } | null
 }
 
 interface Props {
@@ -51,7 +59,13 @@ export function TimeSection({ day, isToday, nowMinutes, worked, balance, onChang
       </header>
 
       {day.timeMode === 'blocks' ? (
-        <BlocksEditor day={day} isToday={isToday} nowMinutes={nowMinutes} onChange={onChange} />
+        <BlocksEditor
+          day={day}
+          isToday={isToday}
+          nowMinutes={nowMinutes}
+          expected={balance.forecast?.expected ?? null}
+          onChange={onChange}
+        />
       ) : (
         <TotalEditor day={day} onChange={onChange} />
       )}
@@ -68,7 +82,13 @@ export function TimeSection({ day, isToday, nowMinutes, worked, balance, onChang
   )
 }
 
-function BlocksEditor({ day, isToday, nowMinutes, onChange }: Omit<Props, 'worked' | 'balance'>) {
+function BlocksEditor({
+  day,
+  isToday,
+  nowMinutes,
+  expected,
+  onChange,
+}: Omit<Props, 'worked' | 'balance'> & { expected: ExpectedEnd | null }) {
   const analysis = analyzeBlocks(day.blocks, nowMinutes)
   const running = day.blocks.find((b) => b.end === null)
   const isRunning = (b: TimeBlock) => b.end === null && analysis.running
@@ -78,6 +98,15 @@ function BlocksEditor({ day, isToday, nowMinutes, onChange }: Omit<Props, 'worke
   const updateBlock = (id: string, patch: Partial<Pick<TimeBlock, 'start' | 'end'>>) =>
     setBlocks((blocks) => blocks.map((b) => (b.id === id ? editBlock(b, patch) : b)))
   const removeBlock = (id: string) => setBlocks((blocks) => blocks.filter((b) => b.id !== id))
+  // „voraussichtlich gehen um …“ – leer/zurücksetzen = Vorlage
+  const setExpectedEnd = (id: string, value: string | null) =>
+    setBlocks((blocks) =>
+      blocks.map((b) => {
+        if (b.id !== id) return b
+        const { expectedEnd: _old, ...rest } = b
+        return value ? { ...rest, expectedEnd: value } : rest
+      }),
+    )
 
   const addBlock = () =>
     setBlocks((blocks) => {
@@ -132,6 +161,30 @@ function BlocksEditor({ day, isToday, nowMinutes, onChange }: Omit<Props, 'worke
               {isRunning(block) && <span className="badge badge--live">läuft</span>}
               {block.planned && <span className="badge badge--muted">geplant</span>}
             </span>
+            {isRunning(block) && expected?.blockId === block.id && (
+              <span className="block-row__expected">
+                <span className="muted small">voraussichtlich bis</span>
+                <TimeInput
+                  className="input input--time"
+                  aria-label="Voraussichtlich gehen um"
+                  title="Wann gehst du voraussichtlich? (z.B. passend zum Zug)"
+                  value={expected.planned === null ? '' : minutesToClock(expected.planned)}
+                  onCommit={(value) => setExpectedEnd(block.id, value)}
+                />
+                {expected.isPast && <span className="muted small">(vorbei)</span>}
+                {expected.custom && (
+                  <button
+                    type="button"
+                    className="icon-btn icon-btn--subtle"
+                    aria-label="Voraussichtliches Gehen zurücksetzen"
+                    title="Zurück auf die Vorlage"
+                    onClick={() => setExpectedEnd(block.id, null)}
+                  >
+                    <Icon name="undo" />
+                  </button>
+                )}
+              </span>
+            )}
             <button
               type="button"
               className="icon-btn icon-btn--subtle"
@@ -218,8 +271,24 @@ function BalanceLine({ balance }: { balance: DayBalance }) {
         Tag <strong className="num" data-testid="day-diff">{formatSignedDuration(dayDiff)}</strong>
         {!recorded && target > 0 && <span className="muted"> (noch nichts erfasst)</span>}
       </span>
+      {balance.forecast && !balance.forecast.expected.isPast && <ForecastLine forecast={balance.forecast} />}
       <WeekLine week={balance.week} />
     </div>
+  )
+}
+
+function ForecastLine({ forecast }: { forecast: NonNullable<DayBalance['forecast']> }) {
+  const { expected, worked, dayDiff, week } = forecast
+  return (
+    <span className="forecast-line small" data-testid="forecast-line">
+      Gehst du um {minutesToClock(expected.end)}: Tag{' '}
+      <strong className="num" data-testid="forecast-worked">{formatDuration(worked)}</strong> (
+      <span className={dayDiff < 0 ? 'is-minus' : dayDiff > 0 ? 'is-plus' : undefined}>
+        <strong className="num" data-testid="forecast-diff">{formatSignedDuration(dayDiff)}</strong>
+      </span>
+      ) · Woche dann {formatDuration(week.worked)}, bis max. {formatDuration(week.max)} noch{' '}
+      <strong className="num">{formatDuration(week.toMax)}</strong>
+    </span>
   )
 }
 

@@ -11,7 +11,7 @@ import { defaultSettings } from './seed'
  * Version des Sicherungsformats. Bei jeder Änderung am Datenmodell erhöhen und
  * in MIGRATIONS eine Funktion „von Version n auf n+1“ ergänzen.
  */
-export const SCHEMA_VERSION = 5
+export const SCHEMA_VERSION = 6
 
 const MIGRATIONS: Record<number, (data: Record<string, unknown>) => Record<string, unknown>> = {
   // 1 → 2: Allocation.blockId ist neu und optional – alte Zeilen bleiben „frei verteilt“.
@@ -29,6 +29,8 @@ const MIGRATIONS: Record<number, (data: Record<string, unknown>) => Record<strin
         )
       : data.days,
   }),
+  // 5 → 6: TimeBlock.expectedEnd ist neu und optional.
+  5: (data) => data,
 }
 
 export interface BackupData {

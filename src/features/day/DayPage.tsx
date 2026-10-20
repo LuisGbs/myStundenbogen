@@ -1,5 +1,6 @@
 import { addDays, formatDateLong, isISODate, todayISO, weekStart } from '../../domain/date'
 import { emptyDay, summarizeDay } from '../../domain/day'
+import { expectedEnd, forecastWorked } from '../../domain/forecast'
 import { holidayOn, type Holiday } from '../../domain/holidays'
 import { withPlannedBlocks } from '../../domain/plan'
 import { targetMinutes, weekSummary } from '../../domain/target'
@@ -35,7 +36,9 @@ export function DayPage({ date }: { date: ISODate }) {
   const day = withPlannedBlocks(stored ?? emptyDay(date), settings)
   const nowMinutes = isToday ? now.getHours() * 60 + now.getMinutes() : null
   const summary = summarizeDay(day, nowMinutes)
-  const timelineBlocks = layoutTimeline(day, summary.allocation, nowMinutes)?.blocks ?? []
+  // Laufender Block: voraussichtliches Gehen (eingetragen oder aus der Vorlage), nie vor jetzt.
+  const expected = nowMinutes === null ? null : expectedEnd(day, settings.dayTemplate ?? [], nowMinutes)
+  const timelineBlocks = layoutTimeline(day, summary.allocation, nowMinutes, expected)?.blocks ?? []
   const holiday = holidayOn(date, settings)
   const target = targetMinutes(date, settings, holiday)
   // Ein noch unberührter Tag (nur Vorlage angezeigt) gilt als „noch nichts erfasst“.
@@ -45,6 +48,12 @@ export function DayPage({ date }: { date: ISODate }) {
     dayDiff: (recorded ?? 0) - target,
     recorded: recorded !== null,
     week: weekSummary(weekDays, date, settings, today, nowMinutes),
+    forecast: expected && {
+      expected,
+      worked: forecastWorked(day, expected.end),
+      dayDiff: forecastWorked(day, expected.end) - target,
+      week: weekSummary(weekDays, date, settings, today, expected.end),
+    },
   }
   // Erste Änderung übernimmt den geplanten Tag mit (Projekte hängen dann an den Plan-Blöcken).
   const change = (fn: (day: Day) => Day) => void updateDay(date, (d) => fn(withPlannedBlocks(d, settings)))
@@ -69,6 +78,7 @@ export function DayPage({ date }: { date: ISODate }) {
         projects={projects}
         activityTypes={activityTypes}
         nowMinutes={nowMinutes}
+        forecast={expected}
         onChange={change}
       />
       <AllocationSection
