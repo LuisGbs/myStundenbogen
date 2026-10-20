@@ -14,7 +14,8 @@ import {
   createProject,
   deleteProject,
   importProjectList,
-  moveProject,
+  reorderActivityType,
+  reorderProject,
   recentProjectIds,
   updateDay,
   updateProject,
@@ -58,7 +59,7 @@ describe('Projekte', () => {
     const b = await createProject({ name: 'Beta' })
     expect(a.name).toBe('Alpha')
     expect(a.color).not.toBe(b.color)
-    await moveProject(b.id, -1, false)
+    await reorderProject(b.id, a.id, false)
     const order = (await db.projects.orderBy('sortOrder').toArray()).map((p) => p.name)
     expect(order).toEqual(['Beta', 'Alpha'])
   })
@@ -68,9 +69,20 @@ describe('Projekte', () => {
     const b = await createProject({ name: 'B' })
     const c = await createProject({ name: 'C' })
     await updateProject(b.id, { active: false })
-    await moveProject(c.id, -1, true)
+    // sichtbar sind nur A und C: C vor A ziehen, das ausgeblendete B bleibt an seinem Platz
+    await reorderProject(c.id, (await db.projects.orderBy('sortOrder').first())!.id, true)
     const order = (await db.projects.orderBy('sortOrder').toArray()).map((p) => p.name)
-    expect(order).toEqual(['C', 'B', 'A'])
+    expect(order).toEqual(['C', 'A', 'B'])
+    // ans Ende (hinter den letzten sichtbaren)
+    await reorderProject(c.id, null, true)
+    expect((await db.projects.orderBy('sortOrder').toArray()).map((p) => p.name)).toEqual(['A', 'C', 'B'])
+  })
+
+  it('Tätigkeitsarten lassen sich umsortieren', async () => {
+    const types = await db.activityTypes.orderBy('sortOrder').toArray()
+    await reorderActivityType(types.at(-1)!.id, types[0].id)
+    const names = (await db.activityTypes.orderBy('sortOrder').toArray()).map((a) => a.name)
+    expect(names[0]).toBe(types.at(-1)!.name)
   })
 
   it('löscht nur Projekte ohne Buchungen', async () => {

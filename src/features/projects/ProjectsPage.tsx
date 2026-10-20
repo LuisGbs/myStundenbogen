@@ -4,6 +4,8 @@ import type { ActivityType, Project } from '../../domain/types'
 import { Icon } from '../../components/Icon'
 import { ColorInput, CommitInput } from '../../components/inputs'
 import { useToast } from '../../components/Toast'
+import { SortGrip } from '../../components/SortGrip'
+import { useSortDrag } from '../../components/useSortDrag'
 import { pickTextFile, useLocalPreference } from '../../lib/browser'
 import { ImportError, parseProjectList } from '../../storage/exportImport'
 import { useActivityTypes, useProjects } from '../../storage/hooks'
@@ -12,8 +14,8 @@ import {
   createProject,
   deleteActivityType,
   deleteProject,
-  moveActivityType,
-  moveProject,
+  reorderActivityType,
+  reorderProject,
   updateActivityType,
   updateProject,
 } from '../../storage/repo'
@@ -42,6 +44,11 @@ function ProjectsCard({ projects, activityTypes }: { projects: Project[]; activi
   const [toast, showToast] = useToast()
   const inactiveCount = projects.filter((p) => !p.active).length
   const visible = showInactive ? projects : projects.filter((p) => p.active)
+  const projectSort = useSortDrag(
+    'projects',
+    visible.map((p) => p.id),
+    (id, beforeId) => void reorderProject(id, beforeId, !showInactive),
+  )
 
   const add = async (e: FormEvent) => {
     e.preventDefault()
@@ -141,9 +148,18 @@ function ProjectsCard({ projects, activityTypes }: { projects: Project[]; activi
           {projects.length === 0 ? 'Leg oben dein erstes Projekt an.' : 'Alle Projekte sind inaktiv.'}
         </p>
       ) : (
-        <ul className="item-list">
-          {visible.map((p, i) => (
-            <li key={p.id} className={`item-row${p.active ? '' : ' is-inactive'}`}>
+        <ul
+          className={`item-list${projectSort.dragging ? ' is-dragging' : ''}${projectSort.dropAtEnd ? ' is-drop-end' : ''}`}
+          data-sort-list="projects"
+        >
+          {visible.map((p) => (
+            <li
+              key={p.id}
+              className={`item-row${p.active ? '' : ' is-inactive'} ${projectSort.rowClass(p.id)}`}
+              data-sort-id={p.id}
+              data-testid="project-row"
+            >
+              <SortGrip label={`${p.name} verschieben`} {...projectSort.gripProps(p.id)} />
               <ColorInput
                 className="color-input"
                 aria-label={`Farbe von ${p.name}`}
@@ -172,11 +188,6 @@ function ProjectsCard({ projects, activityTypes }: { projects: Project[]; activi
                 }}
               />
               <ActiveSwitch active={p.active} onChange={(active) => void updateProject(p.id, { active })} />
-              <MoveButtons
-                first={i === 0}
-                last={i === visible.length - 1}
-                onMove={(dir) => void moveProject(p.id, dir, !showInactive)}
-              />
               <button
                 type="button"
                 className="icon-btn icon-btn--subtle"
@@ -200,6 +211,11 @@ function ProjectsCard({ projects, activityTypes }: { projects: Project[]; activi
 
 function ActivityTypesCard({ activityTypes }: { activityTypes: ActivityType[] }) {
   const [name, setName] = useState('')
+  const typeSort = useSortDrag(
+    'activity-types',
+    activityTypes.map((a) => a.id),
+    (id, beforeId) => void reorderActivityType(id, beforeId),
+  )
 
   const add = async (e: FormEvent) => {
     e.preventDefault()
@@ -224,9 +240,13 @@ function ActivityTypesCard({ activityTypes }: { activityTypes: ActivityType[] })
         Jede Buchung gehört zu Projekt + Tätigkeitsart (z.B. Büro oder Meeting) – wie zwei eigene Einträge in der
         Firmensoftware.
       </p>
-      <ul className="item-list">
-        {activityTypes.map((a, i) => (
-          <li key={a.id} className={`item-row${a.active ? '' : ' is-inactive'}`}>
+      <ul
+        className={`item-list${typeSort.dragging ? ' is-dragging' : ''}${typeSort.dropAtEnd ? ' is-drop-end' : ''}`}
+        data-sort-list="activity-types"
+      >
+        {activityTypes.map((a) => (
+          <li key={a.id} className={`item-row${a.active ? '' : ' is-inactive'} ${typeSort.rowClass(a.id)}`} data-sort-id={a.id}>
+            <SortGrip label={`${a.name} verschieben`} {...typeSort.gripProps(a.id)} />
             <CommitInput
               className="input item-row__name"
               aria-label="Name der Tätigkeitsart"
@@ -239,11 +259,6 @@ function ActivityTypesCard({ activityTypes }: { activityTypes: ActivityType[] })
               }}
             />
             <ActiveSwitch active={a.active} onChange={(active) => void updateActivityType(a.id, { active })} />
-            <MoveButtons
-              first={i === 0}
-              last={i === activityTypes.length - 1}
-              onMove={(dir) => void moveActivityType(a.id, dir)}
-            />
             <button
               type="button"
               className="icon-btn icon-btn--subtle"
@@ -279,18 +294,5 @@ function ActiveSwitch({ active, onChange }: { active: boolean; onChange: (active
       <span className="switch__track" aria-hidden="true" />
       <span className="switch__label">{active ? 'aktiv' : 'inaktiv'}</span>
     </label>
-  )
-}
-
-function MoveButtons({ first, last, onMove }: { first: boolean; last: boolean; onMove: (dir: -1 | 1) => void }) {
-  return (
-    <span className="move-buttons">
-      <button type="button" className="icon-btn icon-btn--subtle" aria-label="Nach oben" disabled={first} onClick={() => onMove(-1)}>
-        <Icon name="arrow-up" />
-      </button>
-      <button type="button" className="icon-btn icon-btn--subtle" aria-label="Nach unten" disabled={last} onClick={() => onMove(1)}>
-        <Icon name="arrow-down" />
-      </button>
-    </span>
   )
 }
