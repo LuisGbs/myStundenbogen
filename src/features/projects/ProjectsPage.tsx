@@ -1,8 +1,11 @@
 import { useState, type FormEvent } from 'react'
+import type { ProjectListFile } from '../../domain/projectTransfer'
 import type { ActivityType, Project } from '../../domain/types'
 import { Icon } from '../../components/Icon'
 import { ColorInput, CommitInput } from '../../components/inputs'
-import { useLocalPreference } from '../../lib/browser'
+import { useToast } from '../../components/Toast'
+import { pickTextFile, useLocalPreference } from '../../lib/browser'
+import { ImportError, parseProjectList } from '../../storage/exportImport'
 import { useActivityTypes, useProjects } from '../../storage/hooks'
 import {
   createActivityType,
@@ -14,6 +17,7 @@ import {
   updateActivityType,
   updateProject,
 } from '../../storage/repo'
+import { ExportProjectsDialog, ImportProjectsDialog } from './ProjectTransferDialog'
 import './projects.css'
 
 export function ProjectsPage() {
@@ -22,16 +26,20 @@ export function ProjectsPage() {
   if (!projects || !activityTypes) return null
   return (
     <div className="page page--narrow">
-      <ProjectsCard projects={projects} />
+      <ProjectsCard projects={projects} activityTypes={activityTypes} />
       <ActivityTypesCard activityTypes={activityTypes} />
     </div>
   )
 }
 
-function ProjectsCard({ projects }: { projects: Project[] }) {
+type TransferDialog = { kind: 'export' } | { kind: 'import'; file: ProjectListFile } | null
+
+function ProjectsCard({ projects, activityTypes }: { projects: Project[]; activityTypes: ActivityType[] }) {
   const [showInactive, setShowInactive] = useLocalPreference('projects.showInactive', false)
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
+  const [dialog, setDialog] = useState<TransferDialog>(null)
+  const [toast, showToast] = useToast()
   const inactiveCount = projects.filter((p) => !p.active).length
   const visible = showInactive ? projects : projects.filter((p) => p.active)
 
@@ -51,17 +59,62 @@ function ProjectsCard({ projects }: { projects: Project[] }) {
     }
   }
 
+  const startImport = async () => {
+    const text = await pickTextFile()
+    if (text === null) return
+    try {
+      setDialog({ kind: 'import', file: parseProjectList(text) })
+    } catch (e) {
+      alert(e instanceof ImportError ? e.message : 'Die Datei konnte nicht gelesen werden.')
+    }
+  }
+
   return (
     <section className="card">
       <header className="card__head">
         <h2>Projekte</h2>
-        {inactiveCount > 0 && (
-          <label className="checkbox">
-            <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
-            Inaktive zeigen ({inactiveCount})
-          </label>
-        )}
+        <div className="card__actions">
+          {inactiveCount > 0 && (
+            <label className="checkbox">
+              <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} />
+              Inaktive zeigen ({inactiveCount})
+            </label>
+          )}
+          <button
+            type="button"
+            className="btn btn--small"
+            disabled={projects.length === 0}
+            onClick={() => setDialog({ kind: 'export' })}
+            title="Projektliste als Datei speichern, z.B. für Kollegen"
+          >
+            <Icon name="download" /> Exportieren …
+          </button>
+          <button
+            type="button"
+            className="btn btn--small"
+            onClick={() => void startImport()}
+            title="Projektliste von Kollegen einlesen"
+          >
+            <Icon name="upload" /> Importieren …
+          </button>
+        </div>
       </header>
+      {dialog?.kind === 'export' && (
+        <ExportProjectsDialog projects={projects} activityTypes={activityTypes} onClose={() => setDialog(null)} />
+      )}
+      {dialog?.kind === 'import' && (
+        <ImportProjectsDialog
+          file={dialog.file}
+          projects={projects}
+          activityTypes={activityTypes}
+          onClose={() => setDialog(null)}
+          onDone={(message) => {
+            setDialog(null)
+            showToast(message)
+          }}
+        />
+      )}
+      {toast}
 
       <form className="add-form" onSubmit={add}>
         <input

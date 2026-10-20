@@ -3,6 +3,7 @@ import { nextProjectColor } from '../domain/colors'
 import { addDays } from '../domain/date'
 import { emptyDay, isEmptyDay } from '../domain/day'
 import { newId } from '../domain/id'
+import type { SharedActivityType, SharedProject } from '../domain/projectTransfer'
 import type { ActivityType, Day, ISODate, Project, Settings } from '../domain/types'
 import { db } from './db'
 
@@ -80,6 +81,34 @@ export async function deleteProject(id: string): Promise<boolean> {
     const settings = await db.settings.get('settings')
     if (settings?.defaultFill?.projectId === id) await db.settings.update('settings', { defaultFill: null })
     return true
+  })
+}
+
+/**
+ * Übernimmt ausgewählte Einträge einer geteilten Projektliste. Alles bekommt
+ * neue IDs und wird hinten angehängt.
+ */
+export async function importProjectList(projects: SharedProject[], activityTypes: SharedActivityType[]): Promise<void> {
+  await db.transaction('rw', db.projects, db.activityTypes, async () => {
+    const colors = (await db.projects.toArray()).map((p) => p.color)
+    let projectOrder = await nextSortOrder(db.projects)
+    for (const p of projects) {
+      const color = /^#[0-9a-f]{6}$/i.test(p.color) ? p.color : nextProjectColor(colors)
+      colors.push(color)
+      await db.projects.add({
+        id: newId(),
+        name: p.name.trim(),
+        code: p.code.trim(),
+        color,
+        active: true,
+        sortOrder: projectOrder++,
+        createdAt: new Date().toISOString(),
+      })
+    }
+    let typeOrder = await nextSortOrder(db.activityTypes)
+    for (const a of activityTypes) {
+      await db.activityTypes.add({ id: newId(), name: a.name.trim(), active: true, sortOrder: typeOrder++ })
+    }
   })
 }
 

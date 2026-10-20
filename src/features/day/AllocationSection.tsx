@@ -1,4 +1,3 @@
-import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import {
   applyAmountInput,
@@ -14,8 +13,8 @@ import { Icon } from '../../components/Icon'
 import { CommitInput } from '../../components/inputs'
 import { Segmented } from '../../components/Segmented'
 import { href } from '../../lib/router'
-import { recentProjectIds } from '../../storage/repo'
 import { FillMenu } from './FillMenu'
+import { useProjectsByRecency } from './useProjectsByRecency'
 
 interface Props {
   day: Day
@@ -29,7 +28,7 @@ interface Props {
 const QUICK_ADD_COUNT = 5
 
 export function AllocationSection({ day, result, projects, activityTypes, settings, onChange }: Props) {
-  const recentIds = useLiveQuery(() => recentProjectIds(day.date, 10), [day.date]) ?? []
+  const byRecency = useProjectsByRecency(day.date, projects)
   const [focusId, setFocusId] = useState<string | null>(null)
 
   const activeProjects = projects.filter((p) => p.active)
@@ -54,13 +53,7 @@ export function AllocationSection({ day, result, projects, activityTypes, settin
 
   // Schnellauswahl: zuletzt genutzte Projekte, aufgefüllt mit weiteren aktiven Projekten.
   const usedToday = new Set(day.allocations.map((a) => a.projectId))
-  const byId = new Map(activeProjects.map((p) => [p.id, p]))
-  const quickAdd = [
-    ...recentIds.flatMap((id) => byId.get(id) ?? []),
-    ...activeProjects,
-  ]
-    .filter((p, i, all) => !usedToday.has(p.id) && all.indexOf(p) === i)
-    .slice(0, QUICK_ADD_COUNT)
+  const quickAdd = byRecency.filter((p) => !usedToday.has(p.id)).slice(0, QUICK_ADD_COUNT)
 
   return (
     <section className="card">

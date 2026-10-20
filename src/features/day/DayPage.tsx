@@ -7,6 +7,7 @@ import { href, navigate } from '../../lib/router'
 import { useActivityTypes, useDay, useProjects, useSettings } from '../../storage/hooks'
 import { updateDay } from '../../storage/repo'
 import { AllocationSection } from './AllocationSection'
+import { DayTimeline } from './DayTimeline'
 import { TimeSection } from './TimeSection'
 import './day.css'
 
@@ -31,6 +32,14 @@ export function DayPage({ date }: { date: ISODate }) {
     <div className="page page--narrow day-page">
       <DayNavigation date={date} isToday={isToday} />
       <TimeSection day={day} isToday={isToday} nowMinutes={nowMinutes} worked={summary.worked} onChange={change} />
+      <DayTimeline
+        day={day}
+        result={summary.allocation}
+        projects={projects}
+        activityTypes={activityTypes}
+        nowMinutes={nowMinutes}
+        onChange={change}
+      />
       <AllocationSection
         day={day}
         result={summary.allocation}

@@ -1,5 +1,6 @@
 import { isISODate } from '../domain/date'
 import { emptyDay } from '../domain/day'
+import type { ProjectListFile } from '../domain/projectTransfer'
 import type { ActivityType, Day, Project, Settings } from '../domain/types'
 import { db } from './db'
 import { defaultSettings } from './seed'
@@ -117,4 +118,48 @@ export async function restoreBackup(file: BackupFile): Promise<void> {
     await db.days.bulkPut(days)
     await db.settings.put(settings)
   })
+}
+
+// ---------- Projektliste (zum Teilen mit Kollegen) ----------
+
+export function projectListFileName(date: string): string {
+  return `stundenbogen-projekte-${date}.json`
+}
+
+function str(v: unknown): string {
+  return typeof v === 'string' ? v : ''
+}
+
+/**
+ * Liest eine geteilte Projektliste. Eine komplette Sicherung wird auch
+ * akzeptiert – daraus werden nur Projekte und Tätigkeitsarten genommen.
+ */
+export function parseProjectList(text: string): ProjectListFile {
+  let raw: unknown
+  try {
+    raw = JSON.parse(text)
+  } catch {
+    throw new ImportError('Die Datei ist keine gültige JSON-Datei.')
+  }
+  if (!isRecord(raw) || raw.app !== 'stundenbogen') {
+    throw new ImportError('Das ist keine Projektliste dieser App.')
+  }
+  const source = raw.kind === 'projects' ? raw : isRecord(raw.data) ? raw.data : null
+  if (!source) throw new ImportError('In der Datei wurden keine Projekte gefunden.')
+
+  const projects = asArray(source.projects, 'Projekte')
+    .map((p) => ({ name: str(p.name).trim(), code: str(p.code).trim(), color: str(p.color) }))
+    .filter((p) => p.name !== '')
+  const activityTypes = (Array.isArray(source.activityTypes) ? asArray(source.activityTypes, 'Tätigkeitsarten') : [])
+    .map((a) => ({ name: str(a.name).trim() }))
+    .filter((a) => a.name !== '')
+
+  return {
+    app: 'stundenbogen',
+    kind: 'projects',
+    schemaVersion: 1,
+    exportedAt: str(raw.exportedAt),
+    projects,
+    activityTypes,
+  }
 }

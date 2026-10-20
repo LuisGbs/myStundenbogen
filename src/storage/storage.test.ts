@@ -1,10 +1,19 @@
 import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from './db'
-import { collectBackup, ImportError, parseBackup, restoreBackup, serializeBackup } from './exportImport'
+import { buildProjectList } from '../domain/projectTransfer'
+import {
+  collectBackup,
+  ImportError,
+  parseBackup,
+  parseProjectList,
+  restoreBackup,
+  serializeBackup,
+} from './exportImport'
 import {
   createProject,
   deleteProject,
+  importProjectList,
   moveProject,
   recentProjectIds,
   updateDay,
@@ -102,6 +111,35 @@ describe('Export/Import', () => {
     expect(() =>
       parseBackup('{"app":"stundenbogen","schemaVersion":1,"data":{"projects":[],"activityTypes":[],"days":[{"date":"x"}]}}'),
     ).toThrow('Ungültiger Tag')
+  })
+
+  it('Projektliste: Roundtrip, volle Sicherung als Quelle, fremde Dateien abgelehnt', async () => {
+    await createProject({ name: 'Alpha', code: 'P-1' })
+    const list = buildProjectList(await db.projects.toArray(), await db.activityTypes.toArray())
+    const parsed = parseProjectList(JSON.stringify(list))
+    expect(parsed.projects).toEqual(list.projects)
+    expect(parsed.activityTypes.map((a) => a.name)).toEqual(['Büro', 'Meeting'])
+
+    const fromBackup = parseProjectList(serializeBackup(await collectBackup()))
+    expect(fromBackup.projects.map((p) => p.name)).toEqual(['Alpha'])
+
+    expect(() => parseProjectList('{"app":"anders"}')).toThrow(ImportError)
+    expect(() => parseProjectList('{"app":"stundenbogen","kind":"projects"}')).toThrow('Projekte')
+  })
+
+  it('Projektliste importieren: neue IDs, hinten angehängt, Farbe übernommen', async () => {
+    const own = await createProject({ name: 'Eigenes' })
+    await importProjectList(
+      [{ name: 'Von Kollegin', code: 'P-7', color: '#ca8a04' }, { name: 'Ohne Farbe', code: '', color: 'kaputt' }],
+      [{ name: 'Reise' }],
+    )
+    const projects = await db.projects.orderBy('sortOrder').toArray()
+    expect(projects.map((p) => p.name)).toEqual(['Eigenes', 'Von Kollegin', 'Ohne Farbe'])
+    expect(projects[1]).toMatchObject({ code: 'P-7', color: '#ca8a04', active: true })
+    expect(projects[2].color).toMatch(/^#[0-9a-f]{6}$/)
+    expect(new Set(projects.map((p) => p.id)).size).toBe(3)
+    expect(projects[0].id).toBe(own.id)
+    expect((await db.activityTypes.orderBy('sortOrder').toArray()).map((a) => a.name)).toEqual(['Büro', 'Meeting', 'Reise'])
   })
 
   it('ergänzt fehlende Felder mit Standardwerten', () => {
