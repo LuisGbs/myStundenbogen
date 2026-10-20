@@ -12,6 +12,7 @@ import { useActivityTypes, useDay, useDaysInRange, useProjects, useSettings } fr
 import { updateDay } from '../../storage/repo'
 import { AllocationSection } from './AllocationSection'
 import { DayTimeline } from './DayTimeline'
+import { NowWorking } from './NowWorking'
 import { TimeSection, type DayBalance } from './TimeSection'
 import './day.css'
 
@@ -59,6 +60,9 @@ export function DayPage({ date }: { date: ISODate }) {
         balance={balance}
         onChange={change}
       />
+      {isToday && (
+        <NowWorking day={day} result={summary.allocation} projects={projects} activityTypes={activityTypes} onChange={change} />
+      )}
       <DayTimeline
         day={day}
         result={summary.allocation}

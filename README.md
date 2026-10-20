@@ -18,6 +18,7 @@ Persönliche Web-App, um jeden Tag schnell festzuhalten, **wie lange** gearbeite
 - **Monatstabelle**
   - Tage nach rechts, Projekte und Tätigkeiten nach unten, Summen, Hinweise auf offene Tage.
   - „Tabelle kopieren“ (direkt in Excel einfügen) und CSV-Export.
+- **„Gerade“ (nur heute):** Projekt antippen → es läuft mit, solange du eingestempelt bist (als „Rest im Block“ am Ende des laufenden Blocks). Wechsel zu einem anderen Projekt hält das alte mit seiner Zeit an, „Anhalten“ ebenso; „Gehen (jetzt)“ beendet es. Nicht eingestempelt: Antippen stempelt gleich ein.
 - **Zeitleiste** im Tag
   - Die Stempel-Blöcke erscheinen als Balken. Projekte zieht man direkt in einen Block; sie liegen dort lückenlos hintereinander.
   - Den rechten Rand eines Projekts ziehen (oder Pfeiltasten): Die folgenden Projekte rücken nach und behalten ihre Länge; länger geht nur, bis das letzte ans Blockende stößt.

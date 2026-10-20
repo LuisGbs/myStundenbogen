@@ -94,7 +94,8 @@ export function dayRanges(day: Day, nowMinutes: Minutes | null = null): DayRange
     const start = clockToMinutes(b.start)
     const running = b.end === null
     const end = running ? nowMinutes : clockToMinutes(b.end!)
-    if (end === null || end <= start) return []
+    // Ein eben erst begonnener Block (0 min) zählt mit – sonst flösse sein Block-Rest in einen anderen Block.
+    if (end === null || end < start || (end === start && !running)) return []
     return [{ id: b.id, index, start, end, running, planned: !!b.planned }]
   })
 }

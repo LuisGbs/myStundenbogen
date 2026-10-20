@@ -42,6 +42,7 @@ In der Cloud-Umgebung nutzt Playwright das vorinstallierte Chromium unter `/opt/
 - Urlaub, Krankheit, Überstundenabbau sind in der Firmensoftware normale Projekte – keine Sonderlogik dafür bauen.
 - Buchungsziel: Projekt + Tätigkeitsart (Büro/Meeting).
 - Lineares Blockmodell: Jede Zeile gehört zu einem Block (`domain/blockAssign.ts`: gültige `blockId`, sonst Fluss in den Block mit Platz); Reihenfolge im `allocations`-Array = Reihenfolge im Block. Modi: `duration` (h:mm, oben gesperrt), `timeline` (oben ziehbar), `percent`, `rest` (Tag), `blockRest` (Block). Moduswechsel verschieben nichts. Verschieben/Einfügen nur über `moveAllocation`/`insertSegment` (`domain/timeline.ts`).
+- „Gerade aktiv“ (`domain/nowWorking.ts`) hat kein eigenes Datenfeld: aktiv = `blockRest` im laufenden Block.
 - Verteilung (`domain/allocation.ts`), in dieser Reihenfolge:
   1. feste Dauern und Prozentwerte; `blockRest` bekommt, was in seinem Block neben allen festen Zeilen frei ist
   2. Rest-Zeilen teilen sich den Rest; ohne Rest-Zeile wird optional proportional aufgefüllt

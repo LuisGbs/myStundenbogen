@@ -670,3 +670,34 @@
 .timeline-panel__note .input {
   flex: 1;
 }
+
+/* ---------- Gerade aktives Projekt ---------- */
+.now-working .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.now-working__active {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-small);
+  background: var(--accent-soft);
+}
+
+.now-working__time {
+  margin-left: auto;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.chip.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 650;
+}
