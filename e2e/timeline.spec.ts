@@ -166,7 +166,7 @@ test('Liste in zeitlicher Reihenfolge, Modus „Zeitleiste“ und gesperrte Zeil
   const locked = timeline.getByTestId('locked-Reinigung · Büro')
   await expect(locked).toBeVisible()
   await expect(locked.getByRole('slider')).toHaveCount(0) // kein Griff
-  await expect.poll(rowProjects).toEqual(['Revit', 'Reinigung']) // gesperrte Zeilen nach den Zeitleisten-Zeilen
+  await expect.poll(rowProjects).toEqual(['Reinigung', 'Revit']) // bleibt an ihrem Platz (lineares Modell)
 
   // Gesperrte Zeile anklicken → Panel ohne Bearbeitung, „Auf Zeitleiste übernehmen“
   await locked.click()

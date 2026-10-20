@@ -99,7 +99,9 @@ export function dayRanges(day: Day, nowMinutes: Minutes | null = null): DayRange
   })
 }
 
-/** Dauer je gültigem Block – für „Rest im Block“. */
+/** Dauer je gültigem Block in zeitlicher Reihenfolge – für Blockzuordnung und „Rest im Block“. */
 export function blockDurations(day: Day, nowMinutes: Minutes | null = null): { id: string; minutes: Minutes }[] {
-  return dayRanges(day, nowMinutes).map((r) => ({ id: r.id, minutes: r.end - r.start }))
+  return dayRanges(day, nowMinutes)
+    .sort((a, b) => a.start - b.start)
+    .map((r) => ({ id: r.id, minutes: r.end - r.start }))
 }

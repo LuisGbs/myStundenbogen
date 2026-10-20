@@ -1,15 +1,5 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
-import {
-  attachToBlock,
-  chronologicalOrder,
-  detachFromTimeline,
-  isOnTimeline,
-  MIN_SEGMENT_MINUTES,
-  moveAllocation,
-  toBlockRest,
-  type MoveTarget,
-  type TimelineBlock,
-} from '../../domain/timeline'
+import { chronologicalOrder, moveAllocation, type MoveTarget, type TimelineBlock } from '../../domain/timeline'
 import {
   applyAmountInput,
   changeAllocationMode,
@@ -34,14 +24,14 @@ interface Props {
   projects: Project[]
   activityTypes: ActivityType[]
   settings: Settings
-  /** Blöcke der Zeitleiste (für Modus „Zeitleiste“ und die zeitliche Sortierung). */
+  /** Blöcke der Zeitleiste in zeitlicher Reihenfolge (Gruppen, Verschieben). */
   timelineBlocks: TimelineBlock[]
   onChange: (fn: (day: Day) => Day) => void
 }
 
 const QUICK_ADD_COUNT = 5
 
-/** Gruppe der Liste: ein Block der Zeitleiste oder (blockId null) „Ohne Zeitleiste“. */
+/** Gruppe der Liste: ein Block der Zeitleiste (blockId null = Tag ohne Blöcke). */
 interface RowGroup {
   blockId: string | null
   label: string
@@ -117,26 +107,19 @@ export function AllocationSection({ day, result, projects, activityTypes, settin
     setAllocations((list) => list.map((a) => (a.id === id ? fn(a) : a)))
   const removeRow = (id: string) => setAllocations((list) => list.filter((a) => a.id !== id))
 
-  // Modus „Zeitleiste“: Zeile hinten an den ersten Block mit freiem Platz hängen.
-  const blockIds = new Set(timelineBlocks.map((b) => b.id))
-  const freeBlock = timelineBlocks.find((b) => b.minutes - b.boundMinutes >= MIN_SEGMENT_MINUTES)
-  const attachRow = (id: string, minutes: Minutes | null) => {
-    if (!freeBlock) return
-    setAllocations((list) => attachToBlock(list, id, freeBlock, minutes ?? 0) ?? list)
-  }
-
-  // Gruppen: je Block der Zeitleiste (zeitlich sortiert), danach „Ohne Zeitleiste“.
-  const ordered = chronologicalOrder(day.allocations, timelineBlocks)
-  const groups: RowGroup[] = [
-    ...timelineBlocks.map((b) => ({
-      blockId: b.id,
-      label: `${b.label}${b.planned ? ' · geplant' : ''}`,
-      rows: ordered.filter((a) => a.blockId === b.id && isOnTimeline(a, blockIds)),
-    })),
-    { blockId: null, label: 'Ohne Zeitleiste (h:mm, %, Rest)', rows: ordered.filter((a) => !isOnTimeline(a, blockIds)) },
-  ]
-  // Kopfzeilen erst, wenn etwas auf der Zeitleiste liegt (oder gerade gezogen wird).
-  const grouped = timelineBlocks.length > 0 && (ordered.some((a) => isOnTimeline(a, blockIds)) || !!rowDrag?.active)
+  // Gruppen: je Block (zeitlich sortiert) die Zeilen in Listen-Reihenfolge – jede Zeile hat ihren Block.
+  const { blockOf } = result
+  const ordered = chronologicalOrder(day.allocations, blockOf, timelineBlocks)
+  const groups: RowGroup[] =
+    timelineBlocks.length > 0
+      ? timelineBlocks.map((b) => ({
+          blockId: b.id,
+          label: `${b.label}${b.planned ? ' · geplant' : ''}`,
+          rows: ordered.filter((a) => blockOf[a.id] === b.id),
+        }))
+      : [{ blockId: null, label: '', rows: ordered }]
+  // Kopfzeilen, sobald es mehr als einen Block gibt.
+  const grouped = timelineBlocks.length > 1
 
   // Gleiches Projekt + Tätigkeit mehrfach (z.B. vor und nach der Pause) → Summe anzeigen.
   const comboTotals = new Map<string, { count: number; minutes: Minutes }>()
@@ -145,15 +128,25 @@ export function AllocationSection({ day, result, projects, activityTypes, settin
     comboTotals.set(comboKey(a), { count: c.count + 1, minutes: c.minutes + (result.minutes[a.id] ?? 0) })
   }
 
+  const ctx = { blockOf, blocks: timelineBlocks }
   const moveRow = (id: string, target: MoveTarget) => {
-    const resolved = result.minutes[id] ?? null
-    if (!moveAllocation(day.allocations, id, target, timelineBlocks, resolved)) {
+    if (!moveAllocation(day.allocations, id, target, ctx)) {
       const block = timelineBlocks.find((b) => b.id === target.blockId)
       setMessage(`Der Block ${block?.label ?? ''} ist schon voll belegt – zuerst ein Segment kürzen.`)
       return
     }
     setMessage(null)
-    setAllocations((list) => moveAllocation(list, id, target, timelineBlocks, resolved) ?? list)
+    setAllocations((list) => moveAllocation(list, id, target, ctx) ?? list)
+  }
+
+  // Moduswechsel: Zeile bleibt in ihrem Block an ihrem Platz (Block wird festgeschrieben).
+  const changeMode = (a: Allocation, mode: AllocationMode) => {
+    const minutes = result.minutes[a.id] ?? null
+    const blockId = blockOf[a.id]
+    changeRow(a.id, (current) => ({
+      ...changeAllocationMode(current, mode, minutes, result.total),
+      ...(blockId ? { blockId } : {}),
+    }))
   }
 
   const updateRowDrag = (next: RowDrag | null) => {
@@ -230,17 +223,10 @@ export function AllocationSection({ day, result, projects, activityTypes, settin
                     <AllocationRow
                       key={a.id}
                       allocation={a}
-                      onTimeline={isOnTimeline(a, blockIds)}
-                      canAttach={!!freeBlock}
                       hasBlocks={timelineBlocks.length > 0}
-                      onAttach={() => attachRow(a.id, result.minutes[a.id] ?? null)}
-                      onBlockRest={() => {
-                        const blockId = isOnTimeline(a, blockIds) ? a.blockId! : timelineBlocks[0].id
-                        changeRow(a.id, (current) => toBlockRest(current, blockId))
-                      }}
+                      onMode={(mode) => changeMode(a, mode)}
                       minutes={result.minutes[a.id] ?? null}
                       combined={combo && combo.count > 1 ? combo.minutes : null}
-                      total={result.total}
                       projects={projects}
                       activityTypes={activityTypes}
                       autoFocus={a.id === focusId}
@@ -300,31 +286,22 @@ function projectLabel(p: Project): string {
   return `${p.name}${p.code ? ` (${p.code})` : ''}${p.active ? '' : ' – inaktiv'}`
 }
 
-/**
- * Eingabeart einer Zeile; „timeline“ = feste Dauer in einem Block, oben in der Zeitleiste
- * bearbeitbar; „blockRest“ = bekommt den Rest seines Blocks.
- */
-type RowMode = AllocationMode | 'blockRest' | 'timeline'
-
-const MODE_OPTIONS: { value: RowMode; label: string; title: string }[] = [
+/** Eingabeart einer Zeile = ihr Modus. Alle Zeilen stehen in ihrem Block; nur „Zeitleiste“ ist oben ziehbar. */
+const MODE_OPTIONS: { value: AllocationMode; label: string; title: string }[] = [
   { value: 'duration', label: 'h:mm', title: 'Feste Dauer (oben gesperrt)' },
   { value: 'percent', label: '%', title: 'Anteil an der Tageszeit (oben gesperrt)' },
   { value: 'rest', label: 'Rest', title: 'Bekommt die restliche Zeit des Tages (oben gesperrt)' },
-  { value: 'blockRest', label: 'Block-Rest', title: 'Bekommt die restliche Zeit seines Blocks' },
+  { value: 'blockRest', label: 'Block-Rest', title: 'Bekommt, was in seinem Block neben den anderen Zeilen frei ist' },
   { value: 'timeline', label: 'Zeitleiste', title: 'Oben in der Zeitleiste ziehen und einstellen' },
 ]
 
 interface RowProps {
   allocation: Allocation
-  onTimeline: boolean
-  canAttach: boolean
   hasBlocks: boolean
-  onAttach: () => void
-  onBlockRest: () => void
+  onMode: (mode: AllocationMode) => void
   minutes: Minutes | null
   /** Summe aller Zeilen mit demselben Projekt + Tätigkeit, wenn es mehrere gibt. */
   combined: Minutes | null
-  total: Minutes | null
   projects: Project[]
   activityTypes: ActivityType[]
   autoFocus: boolean
@@ -337,14 +314,10 @@ interface RowProps {
 
 function AllocationRow({
   allocation,
-  onTimeline,
-  canAttach,
   hasBlocks,
-  onAttach,
-  onBlockRest,
+  onMode,
   minutes,
   combined,
-  total,
   projects,
   activityTypes,
   autoFocus,
@@ -354,8 +327,6 @@ function AllocationRow({
   onChange,
   onRemove,
 }: RowProps) {
-  const blockRest = onTimeline && allocation.mode === 'rest'
-  const rowMode: RowMode = blockRest ? 'blockRest' : onTimeline ? 'timeline' : allocation.mode
   const project = projects.find((p) => p.id === allocation.projectId)
   const projectOptions = projects.filter((p) => p.active || p.id === allocation.projectId)
   const typeOptions = activityTypes.filter((a) => a.active || a.id === allocation.activityTypeId)
@@ -367,11 +338,7 @@ function AllocationRow({
     if (!preview) return null
     // Gegen den gespeicherten Stand auswerten: Wurde gerade erst auf „%“ umgeschaltet,
     // ist das dort schon enthalten, in `allocation` (Anzeige) evtl. noch nicht.
-    // Wird daraus % oder Rest, verlässt die Zeile die Zeitleiste.
-    onChange((current) => {
-      const next = applyAmountInput(current, text) ?? current
-      return next.mode === 'duration' ? next : detachFromTimeline(next)
-    })
+    onChange((current) => applyAmountInput(current, text) ?? current)
     return formatAllocationValue(preview)
   }
 
@@ -440,29 +407,19 @@ function AllocationRow({
         size="small"
         ariaLabel="Eingabeart"
         options={MODE_OPTIONS.map((o) =>
-          o.value === 'timeline' && !onTimeline && !canAttach
-            ? { ...o, disabled: true, title: 'Kein freier Platz in der Zeitleiste' }
-            : o.value === 'blockRest' && !hasBlocks
-              ? { ...o, disabled: true, title: 'Erst Arbeitszeit eintragen – dann gibt es Blöcke' }
-              : o,
+          (o.value === 'timeline' || o.value === 'blockRest') && !hasBlocks
+            ? { ...o, disabled: true, title: 'Erst Arbeitszeit eintragen – dann gibt es Blöcke' }
+            : o,
         )}
-        value={rowMode}
-        onChange={(mode) => {
-          if (mode === 'blockRest') onBlockRest()
-          else if (mode === 'timeline' && blockRest) {
-            // Block-Rest → feste Dauer im selben Block mit der aktuellen Zeit
-            const value = Math.max(minutes ?? 0, MIN_SEGMENT_MINUTES)
-            onChange((current) => ({ ...current, mode: 'duration', value }))
-          } else if (mode === 'timeline') onAttach()
-          else onChange((current) => detachFromTimeline(changeAllocationMode(current, mode, minutes, total)))
-        }}
+        value={allocation.mode}
+        onChange={onMode}
       />
 
       {/* Auch Rest-Zeilen haben ein Feld: Tippen von „1:00“ oder „50%“ wechselt direkt den Modus. */}
       <CommitInput
-        className={`input input--amount${allocation.mode === 'rest' ? ' is-rest' : ''}`}
+        className={`input input--amount${allocation.mode === 'rest' || allocation.mode === 'blockRest' ? ' is-rest' : ''}`}
         aria-label="Dauer oder Anteil"
-        placeholder={blockRest ? 'Blockrest' : allocation.mode === 'rest' ? 'Rest' : allocation.mode === 'percent' ? '50 %' : '1:30'}
+        placeholder={allocation.mode === 'blockRest' ? 'Blockrest' : allocation.mode === 'rest' ? 'Rest' : allocation.mode === 'percent' ? '50 %' : '1:30'}
         autoFocus={autoFocus}
         value={formatAllocationValue(allocation)}
         onCommit={commitValue}

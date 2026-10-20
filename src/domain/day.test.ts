@@ -20,7 +20,7 @@ describe('summarizeDay mit „Rest im Block“', () => {
       { id: 'am', start: '07:00', end: '11:33' },
       { id: 'pm', start: '12:03', end: null },
     ],
-    allocations: [alloc('a', 'duration', 60, 'am'), alloc('r', 'rest', 0, 'am'), alloc('n', 'rest', 0, 'pm')],
+    allocations: [alloc('a', 'duration', 60, 'am'), alloc('r', 'blockRest', 0, 'am'), alloc('n', 'blockRest', 0, 'pm')],
   }
 
   it('Blockdauern: ungültige/offene Blöcke fehlen, laufender Block bis jetzt, Gesamtzeit mit fester ID', () => {
