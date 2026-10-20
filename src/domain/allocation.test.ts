@@ -98,6 +98,46 @@ describe('resolveAllocations', () => {
   })
 })
 
+describe('Rest im Block', () => {
+  const inBlock = (a: Allocation, blockId: string): Allocation => ({ ...a, blockId })
+  const blocks = [
+    { id: 'am', minutes: 267 },
+    { id: 'pm', minutes: 267 },
+  ]
+
+  it('bekommt den freien Platz seines Blocks, der Tages-Rest den Rest des Tages', () => {
+    const r = resolveAllocations(
+      534,
+      [inBlock(row('a', 'duration', 120), 'am'), inBlock(row('br', 'rest'), 'am'), row('p', 'percent', 10), row('tag', 'rest')],
+      'none',
+      blocks,
+    )
+    // br = 267 − 120 = 147; p = 53,4; tag = 534 − 120 − 147 − 53,4 = 213,6
+    expect(r.minutes).toEqual({ a: 120, br: 147, p: 53, tag: 214 })
+    expect(r.status).toBe('ok')
+  })
+
+  it('zwei Blockreste teilen sich den Block; überbuchter Block → 0', () => {
+    const r = resolveAllocations(
+      534,
+      [
+        inBlock(row('x', 'rest'), 'am'),
+        inBlock(row('y', 'rest'), 'am'),
+        inBlock(row('a', 'duration', 300), 'pm'),
+        inBlock(row('z', 'rest'), 'pm'),
+      ],
+      'none',
+      blocks,
+    )
+    expect(r.minutes).toEqual({ x: 134, y: 133, a: 300, z: 0 })
+  })
+
+  it('unbekannter Block (z.B. gelöscht) → normaler Tages-Rest', () => {
+    const r = resolveAllocations(534, [inBlock(row('a', 'duration', 34), 'am'), inBlock(row('r', 'rest'), 'weg')], 'none', blocks)
+    expect(r.minutes.r).toBe(500)
+  })
+})
+
 describe('changeAllocationMode', () => {
   it('behält beim Umschalten die berechnete Zeit bei', () => {
     const a = row('a', 'rest')
@@ -154,5 +194,9 @@ describe('Auffüllen-Helfer', () => {
     const added = applyDefaultFill([row('a', 'duration', 60, 'p2')], target, 'x')
     expect(added).toHaveLength(2)
     expect(added[1]).toMatchObject({ id: 'x', projectId: 'p1', mode: 'rest' })
+    // Zeitleisten-Zeile wird Tages-Rest, nicht „Rest im Block“
+    const onTimeline = applyDefaultFill([{ ...row('b', 'duration', 60, 'p1'), blockId: 'am' }], target, 'x')
+    expect('blockId' in onTimeline[0]).toBe(false)
+    expect(modeForNewAllocation([{ ...row('r', 'rest'), blockId: 'am' }])).toBe('rest')
   })
 })

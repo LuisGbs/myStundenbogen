@@ -1,5 +1,5 @@
 import { resolveAllocations, type AllocationResult } from './allocation'
-import { workedMinutes } from './dayTotal'
+import { blockDurations, workedMinutes } from './dayTotal'
 import type { Day, ISODate, Minutes } from './types'
 
 export function emptyDay(date: ISODate): Day {
@@ -36,5 +36,8 @@ export interface DaySummary {
 
 export function summarizeDay(day: Day, nowMinutes: Minutes | null = null): DaySummary {
   const worked = workedMinutes(day, nowMinutes)
-  return { worked, allocation: resolveAllocations(worked, day.allocations, day.fillStrategy) }
+  return {
+    worked,
+    allocation: resolveAllocations(worked, day.allocations, day.fillStrategy, blockDurations(day, nowMinutes)),
+  }
 }

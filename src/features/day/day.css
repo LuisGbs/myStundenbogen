@@ -95,19 +95,98 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 0.4rem;
   padding: 0.45rem 0.5rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-small);
   background: var(--surface-2);
 }
 
+/* Gruppen je Block (Vormittag, Nachmittag …) und „Ohne Zeitleiste“ */
+.alloc-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border-radius: var(--radius-small);
+}
+
+.alloc-group__head {
+  padding: 0.35rem 0.1rem 0;
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+}
+
+.alloc-group + .alloc-group {
+  margin-top: 0.35rem;
+}
+
+.alloc-list.is-dragging .alloc-group {
+  min-height: 2rem;
+  outline: 1px dashed var(--border-strong);
+  outline-offset: 2px;
+}
+
+.alloc-group.is-drop-end {
+  box-shadow: inset 0 -3px 0 var(--accent);
+}
+
+.alloc-row.is-drop-before {
+  box-shadow: 0 -3px 0 var(--accent);
+}
+
+.alloc-row.is-dragging {
+  opacity: 0.45;
+}
+
+.alloc-row__grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 30px;
+  margin-right: -0.2rem;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--text-muted);
+  cursor: grab;
+  touch-action: none;
+}
+
+.alloc-row__grip:hover,
+.alloc-row__grip:focus-visible {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.alloc-list.is-dragging,
+.alloc-list.is-dragging .alloc-row__grip {
+  cursor: grabbing;
+}
+
+.alloc-row__sum {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.15;
+}
+
+.alloc-row__combined {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
 .alloc-row__project {
   display: flex;
   align-items: center;
   gap: 0.45rem;
-  flex: 1 1 12rem;
-  min-width: 10rem;
+  flex: 1 1 7rem;
+  min-width: 7rem;
 }
 
 .alloc-row__project .input {
@@ -122,7 +201,7 @@
 }
 
 .alloc-row__result {
-  width: 4.2rem;
+  width: 3.6rem;
   text-align: right;
   font-weight: 650;
   font-size: 1.05rem;
@@ -281,8 +360,41 @@
   text-overflow: ellipsis;
 }
 
-.timeline__segment.is-bound {
-  cursor: pointer;
+.timeline__segment.is-bound,
+.timeline__segment.is-blockRest {
+  cursor: grab;
+  touch-action: none;
+}
+
+/* Rest im Block: Projektfarbe, das Ende schraffiert („wächst mit“) */
+.timeline__segment.is-blockRest {
+  background-image: linear-gradient(to right, transparent calc(100% - 16px), rgb(255 255 255 / 0.15) calc(100% - 16px)),
+    repeating-linear-gradient(-45deg, transparent 0 5px, rgb(255 255 255 / 0.22) 5px 8px);
+  background-size: 100% 100%, 16px 100%;
+  background-position: 0 0, right 0;
+  background-repeat: no-repeat;
+}
+
+.timeline__segment.is-dragged {
+  opacity: 0.4;
+}
+
+.timeline.is-moving,
+.timeline.is-moving .timeline__segment {
+  cursor: grabbing;
+}
+
+/* Einfügemarke beim Ziehen */
+.timeline__marker {
+  position: absolute;
+  top: -5px;
+  bottom: -5px;
+  z-index: 3;
+  width: 3px;
+  margin-left: -1.5px;
+  border-radius: 2px;
+  background: var(--accent);
+  pointer-events: none;
 }
 
 .timeline__segment.is-selected {

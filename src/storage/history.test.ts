@@ -44,6 +44,20 @@ describe('Rückgängig / Wiederholen', () => {
     expect(await total()).toBe(480)
   })
 
+  it('ein Schritt umfasst höchstens 1 s ab seiner ersten Änderung', async () => {
+    const day = (m: number) => ({ date: DATE, totalMinutes: m }) as never
+    recordDayChange(DATE, null, day(1), 0)
+    recordDayChange(DATE, day(1), day(2), 600)
+    recordDayChange(DATE, day(2), day(3), 1200) // > 1 s nach dem Start → neuer Schritt
+    recordDayChange(DATE, day(3), day(4), 1300)
+    // zwei Schritte: [nichts → 2] und [2 → 4]
+    await undo()
+    expect(await total()).toBe(2)
+    await undo()
+    expect(await db.days.get(DATE)).toBeUndefined()
+    expect(getHistoryState().canUndo).toBe(false)
+  })
+
   it('zeichnet nichts auf, wenn sich nichts ändert', async () => {
     await updateDay(DATE, (d) => d)
     expect(getHistoryState().canUndo).toBe(false)

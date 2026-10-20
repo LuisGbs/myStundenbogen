@@ -186,7 +186,7 @@ test('Liste in zeitlicher Reihenfolge, Modus „Zeitleiste“ und gesperrte Zeil
   // Weiterbildung unten als Rest → füllt oben die freie Zeit gesperrt auf; per Modus „Zeitleiste“ übernehmen
   await page.getByLabel('Projekt hinzufügen').selectOption({ label: 'Weiterbildung' })
   await expect(rows).toHaveCount(3)
-  await expect(rows.nth(2).getByRole('radio', { name: 'Rest' })).toHaveAttribute('aria-checked', 'true')
+  await expect(rows.nth(2).getByRole('radio', { name: 'Rest', exact: true })).toHaveAttribute('aria-checked', 'true')
   await expect(timeline.getByTestId('locked-Weiterbildung · Büro')).toBeVisible()
   await rows.nth(2).getByRole('radio', { name: 'Zeitleiste' }).click()
   await expect(timeline.getByTestId('segment-Weiterbildung · Büro')).toBeVisible()

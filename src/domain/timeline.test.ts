@@ -1,17 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { resolveAllocations } from './allocation'
-import { emptyDay } from './day'
-import { workedMinutes } from './dayTotal'
+import { emptyDay, summarizeDay } from './day'
 import {
   attachToBlock,
   chronologicalOrder,
   detachFromTimeline,
+  insertionBefore,
   insertSegment,
   isOnTimeline,
   layoutTimeline,
   maxSegmentMinutes,
+  moveAllocation,
   resizeSegment,
   snapMinutes,
+  toBlockRest,
   TOTAL_BLOCK_ID,
 } from './timeline'
 import type { Allocation, Day } from './types'
@@ -27,8 +28,7 @@ const alloc = (id: string, mode: Allocation['mode'], value = 0, blockId?: string
 })
 
 function layout(day: Day, now: number | null = null) {
-  const result = resolveAllocations(workedMinutes(day, now), day.allocations, day.fillStrategy)
-  return layoutTimeline(day, result, now)
+  return layoutTimeline(day, summarizeDay(day, now).allocation, now)
 }
 
 // Vormittag 07:45–12:00 (255 min), Nachmittag 12:45–16:48 (243 min)
@@ -93,9 +93,39 @@ describe('layoutTimeline', () => {
   })
 
   it('Zeilen mit unbekanntem Block oder anderem Modus gelten als frei verteilt', () => {
-    const day = { ...twoBlocks, allocations: [alloc('a', 'duration', 60, 'geloescht'), alloc('b', 'rest', 0, 'am')] }
+    const day = {
+      ...twoBlocks,
+      allocations: [alloc('a', 'duration', 60, 'geloescht'), alloc('b', 'rest', 0, 'geloescht'), alloc('c', 'percent', 10, 'am')],
+    }
     const am = layout(day)!.blocks[0]
-    expect(am.segments.map((s) => s.kind)).toEqual(['floating', 'floating'])
+    expect(am.segments.map((s) => [s.kind, s.allocationId])).toEqual([
+      ['floating', 'a'],
+      ['floating', 'b'],
+    ])
+  })
+
+  it('„Rest im Block“ füllt seinen Block an seiner Position und wächst/schrumpft mit', () => {
+    const day = {
+      ...twoBlocks,
+      allocations: [
+        alloc('a', 'duration', 60, 'am'),
+        alloc('rest', 'rest', 0, 'am'),
+        alloc('b', 'duration', 30, 'am'),
+        alloc('tag', 'rest'),
+      ],
+    }
+    const [am, pm] = layout(day)!.blocks
+    expect(am.segments.map((s) => [s.kind, s.allocationId, s.start, s.minutes])).toEqual([
+      ['bound', 'a', 465, 60],
+      ['blockRest', 'rest', 525, 165],
+      ['bound', 'b', 690, 30],
+    ])
+    expect(am.boundMinutes).toBe(90)
+    // Der Tages-Rest bekommt den ganzen Nachmittag
+    expect(pm.segments.map((s) => [s.kind, s.allocationId, s.minutes])).toEqual([['floating', 'tag', 243]])
+    // Segment davor verlängern → Blockrest schrumpft um genau den Betrag
+    const longer = { ...day, allocations: resizeSegment(day.allocations, 'a', 100, 255) }
+    expect(layout(longer)!.blocks[0].segments[1].minutes).toBe(125)
   })
 
   it('Gesamtzeit: ein Block mit fester ID', () => {
@@ -154,6 +184,83 @@ describe('insertSegment', () => {
 
   it('voller Block → null', () => {
     expect(insertSegment([alloc('a', 'duration', 255, 'am')], block, 500, base)).toBeNull()
+  })
+
+  it('Block mit „Rest im Block“: neues Segment bekommt die Hälfte des freien Platzes', () => {
+    const list = [alloc('a', 'duration', 55, 'am'), alloc('r', 'rest', 0, 'am')]
+    const next = insertSegment(list, block, 700, base)!
+    expect(next.map((a) => a.id)).toEqual(['a', 'r', 'neu'])
+    expect(next[2]).toMatchObject({ value: 100, blockId: 'am' })
+  })
+})
+
+describe('Segmente verschieben', () => {
+  const blocks = [
+    { id: 'am', start: 465, minutes: 255 },
+    { id: 'pm', start: 765, minutes: 243 },
+  ]
+  const list = [
+    alloc('orange', 'duration', 120, 'am'),
+    alloc('violett', 'duration', 82, 'am'),
+    alloc('revit', 'duration', 60, 'pm'),
+    alloc('weiter', 'duration', 50, 'pm'),
+    alloc('fest', 'duration', 30),
+  ]
+  const ids = (l: Allocation[] | null) => l!.map((a) => a.id)
+
+  it('Ablegepunkt → vor welchem Segment', () => {
+    const segs = [
+      { allocationId: 'a', kind: 'bound' as const, start: 0, end: 60 },
+      { allocationId: 'r', kind: 'blockRest' as const, start: 60, end: 100 },
+      { allocationId: null, kind: 'open' as const, start: 100, end: 200 },
+    ]
+    expect(insertionBefore(segs, 10)).toBe('a')
+    expect(insertionBefore(segs, 31)).toBe('r')
+    expect(insertionBefore(segs, 90)).toBeNull()
+    expect(insertionBefore(segs, 10, 'a')).toBe('r')
+  })
+
+  it('im Block umsortieren: Wert bleibt', () => {
+    const next = moveAllocation(list, 'weiter', { blockId: 'pm', beforeId: 'revit' }, blocks, null)
+    expect(ids(next)).toEqual(['orange', 'violett', 'weiter', 'revit', 'fest'])
+    expect(next![2]).toEqual(list[3])
+  })
+
+  it('in den anderen Block: ans Ende, Dauer bleibt; zu wenig Platz → begrenzt', () => {
+    const next = moveAllocation(list, 'violett', { blockId: 'pm', beforeId: null }, blocks, null)
+    expect(ids(next)).toEqual(['orange', 'revit', 'weiter', 'violett', 'fest'])
+    expect(next![3]).toMatchObject({ blockId: 'pm', value: 82 })
+    const full = [alloc('x', 'duration', 200, 'pm'), ...list.slice(0, 2)]
+    expect(moveAllocation(full, 'orange', { blockId: 'pm', beforeId: 'x' }, blocks, null)![0]).toMatchObject({
+      id: 'orange',
+      blockId: 'pm',
+      value: 43,
+    })
+  })
+
+  it('voller Zielblock → null', () => {
+    const full = [alloc('x', 'duration', 243, 'pm'), alloc('a', 'duration', 60, 'am')]
+    expect(moveAllocation(full, 'a', { blockId: 'pm', beforeId: null }, blocks, null)).toBeNull()
+  })
+
+  it('gesperrte Zeile auf die Zeitleiste holen und wieder lösen', () => {
+    const on = moveAllocation(list, 'fest', { blockId: 'am', beforeId: 'violett' }, blocks, 30)!
+    expect(ids(on)).toEqual(['orange', 'fest', 'violett', 'revit', 'weiter'])
+    expect(on[1]).toMatchObject({ mode: 'duration', value: 30, blockId: 'am' })
+    const off = moveAllocation(on, 'fest', { blockId: null, beforeId: null }, blocks, 30)!
+    expect(off.at(-1)).toEqual(alloc('fest', 'duration', 30))
+    // Prozent-Zeile → feste Dauer mit der berechneten Zeit
+    const pct = moveAllocation([alloc('p', 'percent', 10)], 'p', { blockId: 'am', beforeId: null }, blocks, 50)!
+    expect(pct[0]).toMatchObject({ mode: 'duration', value: 50, blockId: 'am' })
+  })
+
+  it('„Rest im Block“ wechselt nur den Block; gelöst wird es Tages-Rest', () => {
+    const withRest = [...list, toBlockRest(alloc('r', 'duration', 10), 'am')]
+    const moved = moveAllocation(withRest, 'r', { blockId: 'pm', beforeId: 'revit' }, blocks, 53)!
+    expect(ids(moved)).toEqual(['orange', 'violett', 'r', 'revit', 'weiter', 'fest'])
+    expect(moved[2]).toMatchObject({ mode: 'rest', value: 0, blockId: 'pm' })
+    const off = moveAllocation(moved, 'r', { blockId: null, beforeId: null }, blocks, 53)!
+    expect(off.at(-1)).toEqual(alloc('r', 'rest', 0))
   })
 })
 

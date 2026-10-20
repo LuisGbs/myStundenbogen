@@ -19,6 +19,7 @@ const PATHS = {
   note: 'M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4',
   undo: 'M9 14L4 9l5-5M4 9h10.5a5.5 5.5 0 010 11H11',
   redo: 'M15 14l5-5-5-5M20 9H9.5a5.5 5.5 0 000 11H13',
+  grip: 'M5 8h14M5 12h14M5 16h14',
 } as const
 
 export type IconName = keyof typeof PATHS

@@ -43,8 +43,9 @@ export function getHistoryState(): HistoryState {
 
 export function recordDayChange(date: ISODate, before: Day | null, after: Day | null, now = Date.now()): void {
   const last = undoStack.at(-1)
+  // Zeitfenster ab der ersten Änderung des Schritts – sonst würden viele schnelle Aktionen hintereinander zu einem Schritt.
   if (last && last.date === date && now - last.at < MERGE_MS) {
-    undoStack[undoStack.length - 1] = { ...last, after, at: now }
+    undoStack[undoStack.length - 1] = { ...last, after }
   } else {
     undoStack = [...undoStack, { date, before, after, at: now }].slice(-LIMIT)
   }
