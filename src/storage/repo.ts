@@ -3,6 +3,7 @@ import { nextProjectColor } from '../domain/colors'
 import { addDays } from '../domain/date'
 import { emptyDay, isEmptyDay } from '../domain/day'
 import { newId } from '../domain/id'
+import { reorderIds } from '../domain/order'
 import type { SharedActivityType, SharedProject } from '../domain/projectTransfer'
 import type { ActivityType, Day, ISODate, Project, Settings } from '../domain/types'
 import { db } from './db'
@@ -12,25 +13,23 @@ import { recordDayChange } from './history'
 
 type Sortable = { id: string; sortOrder: number }
 
-/**
- * Verschiebt einen Eintrag um eine Position. `visible` bestimmt, mit welchem
- * Nachbarn getauscht wird (z.B. nur aktive, wenn inaktive ausgeblendet sind).
- */
-async function moveItem<T extends Sortable>(
+/** Zieht einen Eintrag vor `beforeId` (null = hinter den letzten sichtbaren). */
+async function reorderItem<T extends Sortable>(
   table: Table<T, string>,
   id: string,
-  direction: -1 | 1,
+  beforeId: string | null,
   visible: (item: T) => boolean = () => true,
 ): Promise<void> {
   await db.transaction('rw', table, async () => {
     const items = await table.orderBy('sortOrder').toArray()
-    const i = items.findIndex((x) => x.id === id)
-    if (i < 0) return
-    let j = i + direction
-    while (j >= 0 && j < items.length && !visible(items[j])) j += direction
-    if (j < 0 || j >= items.length) return
-    ;[items[i], items[j]] = [items[j], items[i]]
-    await table.bulkPut(items.map((x, k) => ({ ...x, sortOrder: k })))
+    const byId = new Map(items.map((x) => [x.id, x]))
+    const order = reorderIds(
+      items.map((x) => x.id),
+      id,
+      beforeId,
+      (k) => visible(byId.get(k)!),
+    )
+    await table.bulkPut(order.map((k, i) => ({ ...byId.get(k)!, sortOrder: i })))
   })
 }
 
@@ -62,8 +61,8 @@ export async function updateProject(id: string, patch: Partial<Omit<Project, 'id
   await db.projects.update(id, patch)
 }
 
-export async function moveProject(id: string, direction: -1 | 1, onlyActive: boolean): Promise<void> {
-  await moveItem(db.projects, id, direction, (p) => !onlyActive || p.active)
+export async function reorderProject(id: string, beforeId: string | null, onlyActive: boolean): Promise<void> {
+  await reorderItem(db.projects, id, beforeId, (p) => !onlyActive || p.active)
 }
 
 async function isReferenced(predicate: (day: Day) => boolean): Promise<boolean> {
@@ -132,8 +131,8 @@ export async function updateActivityType(id: string, patch: Partial<Omit<Activit
   await db.activityTypes.update(id, patch)
 }
 
-export async function moveActivityType(id: string, direction: -1 | 1): Promise<void> {
-  await moveItem(db.activityTypes, id, direction)
+export async function reorderActivityType(id: string, beforeId: string | null): Promise<void> {
+  await reorderItem(db.activityTypes, id, beforeId)
 }
 
 export function isActivityTypeInUse(id: string): Promise<boolean> {

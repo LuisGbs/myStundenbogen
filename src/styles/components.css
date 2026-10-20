@@ -676,3 +676,43 @@ select.input {
   margin-top: 0.75rem;
   margin-bottom: 0.25rem;
 }
+
+/* Griff ≡ zum Sortieren per Drag & Drop (useSortDrag) */
+.sort-grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--text-muted);
+  cursor: grab;
+  touch-action: none;
+  flex: none;
+}
+
+.sort-grip:hover,
+.sort-grip:focus-visible {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
+[data-sort-list].is-dragging,
+[data-sort-list].is-dragging .sort-grip {
+  cursor: grabbing;
+}
+
+[data-sort-id].is-dragging {
+  opacity: 0.45;
+}
+
+[data-sort-id].is-drop-before {
+  box-shadow: 0 -3px 0 var(--accent);
+}
+
+[data-sort-list].is-drop-end > [data-sort-id]:last-child {
+  box-shadow: 0 3px 0 var(--accent);
+}
