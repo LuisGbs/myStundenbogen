@@ -23,6 +23,7 @@ Persönliche Web-App, um jeden Tag schnell festzuhalten, **wie lange** gearbeite
   - Den rechten Rand eines Projekts ziehen (oder Pfeiltasten): Die folgenden Projekte rücken nach und behalten ihre Länge; länger geht nur, bis das letzte ans Blockende stößt.
   - Klick auf ein Projekt: Büro/Meeting, ¼ ½ ¾ Ganz des Blocks, Entfernen.
   - Zeilen ohne Block (Rest, %) füllen den freien Platz blass auf, die offene Zeit ist gestreift.
+- **Rückgängig / Wiederholen** für alle Änderungen an Tagen: Knöpfe ↶ ↷ oben rechts oder **Strg+Z** / **Strg+Y** (bzw. Strg+Shift+Z). Gilt, solange die Seite offen ist.
 - **Projekte** anlegen, umbenennen, sortieren, aktivieren/deaktivieren. Inaktive bleiben in alten Monaten sichtbar.
 - **Projektliste teilen**
   - „Exportieren …“ speichert ausgewählte Projekte (Name, Nummer, Farbe) und die Tätigkeitsarten – ohne Stunden und Tage – z.B. für Kollegen.
@@ -48,7 +49,7 @@ Eingabeformate: `8:18`, `8,3` (Dezimalstunden), `8h18`, `90m`, `50%`, `rest`.
 2. GitHub Pages einschalten: *Settings → Pages → Build and deployment → Source: **GitHub Actions***.
 3. Ab dann veröffentlicht jeder Push auf `main` die App automatisch unter `https://<benutzername>.github.io/<repo-name>/`.
 4. Die App im Browser öffnen, „Neu beginnen“ wählen, dann den Sicherungsordner verbinden.
-5. Tipp: In Chrome/Edge über das Menü **„App installieren“** wählen. Dann startet die App in einem eigenen Fenster.
+5. Tipp: In Chrome/Edge über das Menü **„App installieren“** wählen. Dann startet die App in einem eigenen Fenster mit eigenem Icon. (Wurde sie vor dem Icon-Update installiert: einmal deinstallieren und neu installieren.)
 
 ## Entwicklung
 

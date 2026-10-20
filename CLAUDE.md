@@ -17,7 +17,8 @@ Persönliche Stundenbogen-App (React 19 + TypeScript + Vite, Daten in IndexedDB 
   1. neue `this.version(n)` in `storage/db.ts` anhängen (alte nie verändern)
   2. `SCHEMA_VERSION` in `storage/exportImport.ts` erhöhen
   3. `MIGRATIONS[n-1]` ergänzen, damit alte Sicherungsdateien importierbar bleiben
-- Schreibzugriffe nur über `storage/repo.ts`. Tage immer per `updateDay(date, fn)` ändern: liest, ändert, speichert in einer Transaktion und löscht leere Tage.
+- Schreibzugriffe nur über `storage/repo.ts`. Tage immer per `updateDay(date, fn)` ändern: liest, ändert, speichert in einer Transaktion und löscht leere Tage. Nur so landet die Änderung auch im Rückgängig-Verlauf (`storage/history.ts`).
+- App-Icons werden aus `public/favicon.svg` erzeugt: `node scripts/make-icons.mjs`.
 - UI liest per Hooks aus `storage/hooks.ts` (`useLiveQuery`), aktualisiert sich daher automatisch.
 - Texteingaben, die asynchron gespeichert werden, über `CommitInput` / `TimeInput` (`components/inputs.tsx`), nicht als einfach kontrollierte Inputs.
 - Routing über Hash (`lib/router.ts`). Vite `base: './'` – funktioniert unter jedem Repo-Namen.

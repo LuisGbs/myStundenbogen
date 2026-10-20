@@ -3,6 +3,7 @@ import { useSyncExternalStore } from 'react'
 import type { ActivityType, Day, ISODate, Project, Settings } from '../domain/types'
 import { getBackupState, subscribeBackup, type BackupState } from './backup'
 import { db } from './db'
+import { getHistoryState, subscribeHistory, type HistoryState } from './history'
 import { getDaysInRange } from './repo'
 
 // Alle Hooks liefern `undefined`, solange noch geladen wird.
@@ -32,4 +33,9 @@ export function useDaysInRange(from: ISODate, to: ISODate): Day[] | undefined {
 
 export function useBackupState(): BackupState {
   return useSyncExternalStore(subscribeBackup, getBackupState)
+}
+
+/** Ob Rückgängig/Wiederholen gerade möglich ist. */
+export function useHistory(): HistoryState {
+  return useSyncExternalStore(subscribeHistory, getHistoryState)
 }

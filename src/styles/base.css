@@ -180,8 +180,19 @@ code {
   border-bottom-color: var(--accent);
 }
 
-.topbar__backup {
+.topbar__end {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.undo-redo {
+  display: flex;
+  gap: 0.15rem;
+}
+
+.topbar__backup {
   display: flex;
   align-items: center;
   gap: 0.3rem;
