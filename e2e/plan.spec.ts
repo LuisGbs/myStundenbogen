@@ -8,21 +8,21 @@ test('geplanter Arbeitstag: Vorlage grau vorbelegt, Projekte verteilen, echte St
   await page.getByRole('button', { name: 'Anlegen' }).click()
   await expect(page.locator('.item-row input[aria-label="Projektname"]')).toHaveValue('Revit')
 
-  // Mittwoch, noch nichts gestempelt → Vorlage 07:00–11:33 + 12:03–16:30 als „geplant“
+  // Mittwoch, noch nichts gestempelt → Vorlage 07:00–11:33 + 12:03–15:48 (= 8:18) als „geplant“
   await page.goto('/#/tag/2026-10-14')
   const planned = page.getByTestId('planned-block')
   await expect(planned).toHaveCount(2)
   await expect(page.getByTestId('plan-note')).toContainText('noch nicht gestempelt')
   await expect(page.getByLabel('Block 1 Beginn')).toHaveValue('07:00')
-  await expect(page.getByLabel('Block 2 Ende')).toHaveValue('16:30')
-  await expect(page.getByTestId('worked-total')).toHaveText('9:00')
+  await expect(page.getByLabel('Block 2 Ende')).toHaveValue('15:48')
+  await expect(page.getByTestId('worked-total')).toHaveText('8:18')
   const timeline = page.getByTestId('timeline')
   await expect(timeline.locator('.timeline__block.is-planned')).toHaveCount(2)
   await expect(timeline.locator('.timeline__labels')).toContainText('geplant')
 
   // Schon grob planen: Projekt auf den geplanten Nachmittag ziehen
   await timeline.getByTestId('timeline-chip-Revit').dragTo(timeline.getByTestId('timeline-block-1'))
-  await expect(timeline.getByTestId('segment-Revit · Büro').getByRole('slider')).toHaveAttribute('aria-valuenow', '267')
+  await expect(timeline.getByTestId('segment-Revit · Büro').getByRole('slider')).toHaveAttribute('aria-valuenow', '225')
   await expect(planned).toHaveCount(2) // weiterhin geplant
 
   // Monat zeigt den Tag als geplant (kursiv/grau, ~)
@@ -49,7 +49,7 @@ test('geplanter Arbeitstag: Vorlage grau vorbelegt, Projekte verteilen, echte St
   await expect(planned).toHaveCount(2)
   await page.getByRole('button', { name: 'Plan übernehmen' }).click()
   await expect(planned).toHaveCount(0)
-  await expect(page.getByTestId('worked-total')).toHaveText('9:00')
+  await expect(page.getByTestId('worked-total')).toHaveText('8:18')
 
   // Vorlage in den Einstellungen ändern → gilt für neue Tage
   await page.goto('/#/einstellungen')
@@ -57,5 +57,10 @@ test('geplanter Arbeitstag: Vorlage grau vorbelegt, Projekte verteilen, echte St
   await page.goto('/#/tag/2026-10-16')
   await expect(page.getByLabel('Block 2 Ende')).toHaveValue('16:00')
   await expect(page.getByTestId('worked-total')).toHaveText('8:30')
+
+  // Feiertag (Auffahrt 2026, Basel-Landschaft) → keine Vorlage
+  await page.goto('/#/tag/2026-05-14')
+  await expect(page.getByTestId('holiday-badge')).toContainText('Auffahrt')
+  await expect(page.getByTestId('planned-block')).toHaveCount(0)
   await page.screenshot({ path: 'test-results/geplant.png', fullPage: true })
 })

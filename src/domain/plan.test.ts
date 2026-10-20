@@ -3,7 +3,13 @@ import { emptyDay } from './day'
 import { workedMinutes } from './dayTotal'
 import { clockIn, confirmPlan, DEFAULT_DAY_TEMPLATE, editBlock, hasPlannedBlocks, withPlannedBlocks } from './plan'
 
-const settings = { dayTemplate: DEFAULT_DAY_TEMPLATE, weekdayTargets: [498, 498, 498, 498, 498, 0, 0] }
+const settings = {
+  dayTemplate: DEFAULT_DAY_TEMPLATE,
+  weekdayTargets: [498, 498, 498, 498, 498, 0, 0],
+  holidayRegion: 'CH-BL' as const,
+  holidayOverrides: {},
+  customHolidays: [],
+}
 const WEDNESDAY = '2026-10-14'
 const SATURDAY = '2026-10-17'
 
@@ -12,14 +18,18 @@ describe('geplanter Arbeitstag', () => {
     const day = withPlannedBlocks(emptyDay(WEDNESDAY), settings)
     expect(day.blocks).toEqual([
       { id: 'plan-0', start: '07:00', end: '11:33', planned: true },
-      { id: 'plan-1', start: '12:03', end: '16:30', planned: true },
+      { id: 'plan-1', start: '12:03', end: '15:48', planned: true },
     ])
-    expect(workedMinutes(day)).toBe(273 + 267) // 9:00 geplant
+    expect(workedMinutes(day)).toBe(498) // 8:18 = Soll
     expect(hasPlannedBlocks(day)).toBe(true)
   })
 
-  it('nicht am Wochenende, nicht bei Gesamtzeit, nicht wenn schon gestempelt', () => {
+  it('nicht am Wochenende, an Feiertagen, bei Gesamtzeit oder wenn schon gestempelt', () => {
     expect(withPlannedBlocks(emptyDay(SATURDAY), settings).blocks).toEqual([])
+    expect(withPlannedBlocks(emptyDay('2026-05-14'), settings).blocks).toEqual([]) // Auffahrt
+    // halber Feiertag → Vorlage bleibt
+    const half = { ...settings, customHolidays: [{ date: WEDNESDAY, name: 'Halb', share: 0.5 as const }] }
+    expect(withPlannedBlocks(emptyDay(WEDNESDAY), half).blocks).toHaveLength(2)
     expect(withPlannedBlocks({ ...emptyDay(WEDNESDAY), timeMode: 'total' }, settings).blocks).toEqual([])
     const stamped = { ...emptyDay(WEDNESDAY), blocks: [{ id: 'x', start: '08:00', end: '12:00' }] }
     expect(withPlannedBlocks(stamped, settings)).toBe(stamped)

@@ -25,7 +25,9 @@ Persönliche Web-App, um jeden Tag schnell festzuhalten, **wie lange** gearbeite
   - In der Liste hat jede Zeile den Modus h:mm, %, Rest oder **Zeitleiste**. Nur Zeitleisten-Zeilen lassen sich oben ziehen; h:mm/%/Rest-Zeilen erscheinen oben blass und gesperrt (Klick → „Auf Zeitleiste übernehmen“).
   - Die Liste ist zeitlich sortiert: Zeilen der Zeitleiste Block für Block von links nach rechts, danach die übrigen.
   - Die offene Zeit ist gestreift.
-- **Geplanter Arbeitstag:** Ist an einem Werktag noch nichts gestempelt, steht die Vorlage (Standard 07:00–11:33 und 12:03–16:30, in den Einstellungen änderbar) grau als „geplant“ da. Man kann schon Projekte verteilen; jede nachgetragene Stempelzeit macht den Block echt, „Plan übernehmen“ alle auf einmal. Im Monat sind geplante Tage grau/kursiv mit „~“.
+- **Soll & Überstunden:** Soll je Wochentag (Standard 8:18 Mo–Fr = 41:30), Übertrag mit Stichtag. Tagesansicht zeigt Soll, Tagesdifferenz und Saldo, die Monatstabelle Soll- und Differenz-Zeile sowie Soll/Differenz/Saldo im Kopf. Vergangene Arbeitstage ohne Eintrag zählen mit 0 h und werden angezeigt. Urlaub/Krank/Überstundenabbau sind normale Projekte.
+- **Feiertage je Arbeitsort:** Schweiz – Basel-Landschaft, Deutschland – Baden-Württemberg, Bayern, Rheinland-Pfalz (offline berechnet). Einzelne Tage abschaltbar, optionale zuschaltbar (z.B. Berchtoldstag), eigene ganze/halbe Tage. An Feiertagen kein Soll und keine Vorlage.
+- **Geplanter Arbeitstag:** Ist an einem Werktag noch nichts gestempelt, steht die Vorlage (Standard 07:00–11:33 und 12:03–15:48 = 8:18, in den Einstellungen änderbar) grau als „geplant“ da. Man kann schon Projekte verteilen; jede nachgetragene Stempelzeit macht den Block echt, „Plan übernehmen“ alle auf einmal. Im Monat sind geplante Tage grau/kursiv mit „~“.
 - **Rückgängig / Wiederholen** für alle Änderungen an Tagen: Knöpfe ↶ ↷ oben rechts oder **Strg+Z** / **Strg+Y** (bzw. Strg+Shift+Z). Gilt, solange die Seite offen ist.
 - **Projekte** anlegen, umbenennen, sortieren, aktivieren/deaktivieren. Inaktive bleiben in alten Monaten sichtbar.
 - **Projektliste teilen**
@@ -81,11 +83,8 @@ Jede Änderung läuft über einen Branch und einen Pull Request. Die GitHub Acti
 ## Fahrplan
 
 - **Phase 1 (fertig):** Tag, Verteilung, Auffüllen, Monatstabelle mit Export, Projekte, Sicherung
-- **Phase 2:**
-  - Soll-Zeit (8:18 Mo–Fr) und Überstundenkonto
-  - Feiertage Basel-Landschaft und Wochenenden
-  - Urlaub, Krank, Abwesenheit (auch halbe Tage)
-  - Notizen pro Eintrag
+- **Phase 2 (fertig):** Soll-Zeit und Überstundenkonto, Feiertage je Arbeitsort (Urlaub/Krank laufen als Projekte)
+- **Offen:** Notizen pro Eintrag
 - **Phase 3:**
   - Offline-App (PWA)
   - Tastaturkürzel

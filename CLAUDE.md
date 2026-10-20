@@ -35,8 +35,10 @@ In der Cloud-Umgebung nutzt Playwright das vorinstallierte Chromium unter `/opt/
 
 ## Fachliches
 
-- Soll-Zeit: 41,5 h/Woche = 8:18 Mo–Fr.
-- Feiertage: Kanton Basel-Landschaft (CH).
+- Soll-Zeit: 41,5 h/Woche = 8:18 Mo–Fr; Vorlage „normaler Arbeitstag“ 07:00–11:33 + 12:03–15:48.
+- Einstellungen, die auf dem bisherigen Wert aufbauen, über `changeSettings(fn)` speichern (nicht `updateSettings` mit dem angezeigten Stand).
+- Feiertage: je nach Arbeitsort (`domain/holidays.ts`: CH-BL, DE-BW, DE-BY, DE-RP), Soll/Saldo in `domain/target.ts`.
+- Urlaub, Krankheit, Überstundenabbau sind in der Firmensoftware normale Projekte – keine Sonderlogik dafür bauen.
 - Buchungsziel: Projekt + Tätigkeitsart (Büro/Meeting).
 - Verteilung (`domain/allocation.ts`), in dieser Reihenfolge:
   1. feste Dauern und Prozentwerte

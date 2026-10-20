@@ -155,3 +155,23 @@ describe('Export/Import', () => {
     expect(file.data.settings.weekdayTargets[0]).toBe(498)
   })
 })
+
+describe('Datenbank-Update', () => {
+  it('v4 ersetzt die alte Standard-Vorlage (9:00) durch 8:18, eigene Vorlagen bleiben', async () => {
+    const { default: Dexie } = await import('dexie')
+    const { StundenbogenDB } = await import('./db')
+    for (const [name, template, expected] of [
+      ['upgrade-alt', [{ start: '07:00', end: '11:33' }, { start: '12:03', end: '16:30' }], '15:48'],
+      ['upgrade-eigen', [{ start: '06:30', end: '15:00' }], '15:00'],
+    ] as const) {
+      const old = new Dexie(name)
+      old.version(3).stores({ projects: 'id, sortOrder', activityTypes: 'id, sortOrder', days: 'date', settings: 'id', meta: 'key' })
+      await old.table('settings').put({ id: 'settings', dayTemplate: template })
+      old.close()
+      const upgraded = new StundenbogenDB(name)
+      const s = await upgraded.settings.get('settings')
+      expect(s?.dayTemplate.at(-1)?.end).toBe(expected)
+      upgraded.close()
+    }
+  })
+})
