@@ -488,10 +488,6 @@
   color: var(--danger);
 }
 
-.balance-line__missing {
-  font-size: 0.82rem;
-  color: var(--warn);
-}
 
 .balance-line + .worked-total {
   margin-top: 0.4rem;

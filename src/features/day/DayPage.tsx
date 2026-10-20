@@ -2,7 +2,7 @@ import { addDays, formatDateLong, isISODate, todayISO, weekStart } from '../../d
 import { emptyDay, summarizeDay } from '../../domain/day'
 import { holidayOn, type Holiday } from '../../domain/holidays'
 import { withPlannedBlocks } from '../../domain/plan'
-import { balanceUntil, targetMinutes, weekSummary } from '../../domain/target'
+import { targetMinutes, weekSummary } from '../../domain/target'
 import { layoutTimeline } from '../../domain/timeline'
 import type { Day, ISODate } from '../../domain/types'
 import { Icon } from '../../components/Icon'
@@ -25,13 +25,10 @@ export function DayPage({ date }: { date: ISODate }) {
   const isToday = date === today
   const hasRunningBlock = !!stored?.blocks.some((b) => b.end === null)
   const now = useNow(isToday && hasRunningBlock ? 20_000 : null)
-  // Für den Überstunden-Saldo: alle Tage vom Startdatum bis vor diesem Tag.
-  const balanceFrom = settings && settings.balanceStart.date < date ? settings.balanceStart.date : date
-  const balanceDays = useDaysInRange(balanceFrom, addDays(date, -1) < balanceFrom ? balanceFrom : addDays(date, -1))
   const monday = weekStart(date)
   const weekDays = useDaysInRange(monday, addDays(monday, 6))
 
-  if (stored === undefined || !projects || !activityTypes || !settings || !balanceDays || !weekDays) return null
+  if (stored === undefined || !projects || !activityTypes || !settings || !weekDays) return null
 
   // Noch nichts gestempelt → Vorlage „normaler Arbeitstag“ als geplant zeigen.
   const day = withPlannedBlocks(stored ?? emptyDay(date), settings)
@@ -40,15 +37,12 @@ export function DayPage({ date }: { date: ISODate }) {
   const timelineBlocks = layoutTimeline(day, summary.allocation, nowMinutes)?.blocks ?? []
   const holiday = holidayOn(date, settings)
   const target = targetMinutes(date, settings, holiday)
-  // Ein noch unberührter Tag (nur Vorlage angezeigt) zählt für den Saldo als „nicht erfasst“.
+  // Ein noch unberührter Tag (nur Vorlage angezeigt) gilt als „noch nichts erfasst“.
   const recorded = stored ? summary.worked : null
-  const before = date <= today ? balanceUntil(balanceDays, settings, addDays(date, -1), today) : null
   const balance: DayBalance = {
     target,
     dayDiff: (recorded ?? 0) - target,
     recorded: recorded !== null,
-    after: before && date >= settings.balanceStart.date ? before.minutes + (recorded ?? 0) - target : null,
-    missingDays: before?.missingDays ?? [],
     week: weekSummary(weekDays, date, settings, today, nowMinutes),
   }
   // Erste Änderung übernimmt den geplanten Tag mit (Projekte hängen dann an den Plan-Blöcken).

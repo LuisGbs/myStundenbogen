@@ -3,10 +3,8 @@ import { formatDateLong, isISODate, todayISO, weekdayName } from '../../domain/d
 import {
   clockToMinutes,
   formatDuration,
-  formatSignedDuration,
   minutesToClock,
   parseDuration,
-  parseSignedDuration,
 } from '../../domain/duration'
 import { HOLIDAY_REGIONS, holidaysInYear } from '../../domain/holidays'
 import { isValidTemplate } from '../../domain/plan'
@@ -235,7 +233,7 @@ function WorkTimeCard({ settings }: { settings: Settings }) {
   return (
     <section className="card">
       <header className="card__head">
-        <h2>Soll-Arbeitszeit &amp; Überstunden</h2>
+        <h2>Soll-Arbeitszeit &amp; Woche</h2>
         <span className="muted small">
           Woche: <strong className="num">{formatDuration(weeklyTarget(settings))}</strong>
         </span>
@@ -260,21 +258,6 @@ function WorkTimeCard({ settings }: { settings: Settings }) {
       </div>
       <div className="balance-start">
         <label className="field">
-          <span className="field__label">Überstunden-Übertrag</span>
-          <CommitInput
-            className="input input--amount"
-            aria-label="Überstunden-Übertrag"
-            placeholder="+0:00"
-            value={formatSignedDuration(settings.balanceStart.minutes)}
-            onCommit={(text) => {
-              const minutes = text.trim() === '' ? 0 : parseSignedDuration(text)
-              if (minutes === null) return null
-              void changeSettings((s) => ({ balanceStart: { ...s.balanceStart, minutes } }))
-              return formatSignedDuration(minutes)
-            }}
-          />
-        </label>
-        <label className="field">
           <span className="field__label">Höchstarbeitszeit / Woche</span>
           <CommitInput
             className="input input--amount"
@@ -288,24 +271,11 @@ function WorkTimeCard({ settings }: { settings: Settings }) {
             }}
           />
         </label>
-        <label className="field">
-          <span className="field__label">gilt ab (Stichtag)</span>
-          <input
-            type="date"
-            className="input"
-            aria-label="Stichtag Überstunden"
-            value={settings.balanceStart.date}
-            onChange={(e) => {
-              const date = e.target.value // jetzt lesen – beim Speichern zeigt das Feld evtl. schon wieder den alten Wert
-              if (isISODate(date)) void changeSettings((s) => ({ balanceStart: { ...s.balanceStart, date } }))
-            }}
-          />
-        </label>
       </div>
       <p className="muted small">
-        Saldo = Übertrag + (gearbeitet − Soll) für jeden Tag ab dem Stichtag. Feiertage haben kein Soll. Urlaub,
-        Krankheit und Überstundenabbau trägst du wie gewohnt als Projekt ein. Tipp: Übertrag und Stichtag aus der
-        Firmensoftware übernehmen, z.B. Stand Monatsanfang.
+        Pro Tag und pro Woche zeigt die App, wie viel du über oder unter dem Soll liegst und wie viel bis zur
+        Höchstarbeitszeit noch geht. Einen Gesamtsaldo führt sie bewusst nicht – der kommt aus der Firmensoftware.
+        Feiertage haben kein Soll.
       </p>
     </section>
   )

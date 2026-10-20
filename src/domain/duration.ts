@@ -18,13 +18,24 @@ export type ParsedAmount =
   | { kind: 'percent'; percent: number }
   | { kind: 'rest' }
 
+/** Zahl mit Dezimalpunkt oder -komma, auch ohne führende Null: '8', '8,3', '.5'. */
+const NUMBER = String.raw`(\d+(?:[.,]\d+)?|[.,]\d+)`
+const PERCENT_RE = new RegExp(String.raw`^${NUMBER} ?%$`)
+const HOURS_RE = new RegExp(String.raw`^${NUMBER} ?(?:h|std\.?) ?(?:(\d{1,2}) ?(?:m|min)?)?$`)
+const DECIMAL_RE = new RegExp(String.raw`^${NUMBER}$`)
+
 function toNumber(s: string): number {
   return Number(s.replace(',', '.'))
 }
 
+/** Nackte Zahl wie '50', '1,5' oder '.5'? */
+export function isPlainNumber(s: string): boolean {
+  return DECIMAL_RE.test(s)
+}
+
 /**
  * Versteht die üblichen Schreibweisen für Dauern:
- *   '8:18', ':30', '8,3' / '8.3' (Dezimalstunden), '8' (Stunden),
+ *   '8:18', ':30', '8,3' / '8.3' / '.5' (Dezimalstunden), '8' (Stunden),
  *   '8h', '8h18', '8h 18m', '90m', '90 min', '50%', 'rest'.
  * Gibt null zurück, wenn die Eingabe nicht verstanden wird.
  */
@@ -33,7 +44,7 @@ export function parseAmount(input: string): ParsedAmount | null {
   if (s === '') return null
   if (s === 'rest' || s === 'r') return { kind: 'rest' }
 
-  let m = /^(\d+(?:[.,]\d+)?) ?%$/.exec(s)
+  let m = PERCENT_RE.exec(s)
   if (m) {
     const percent = toNumber(m[1])
     return percent <= 1000 ? { kind: 'percent', percent } : null
@@ -48,7 +59,7 @@ export function parseAmount(input: string): ParsedAmount | null {
   }
 
   // 8h, 8h18, 8h 18m, 8 h 18 min, 8 std
-  m = /^(\d+(?:[.,]\d+)?) ?(?:h|std\.?) ?(?:(\d{1,2}) ?(?:m|min)?)?$/.exec(s)
+  m = HOURS_RE.exec(s)
   if (m) {
     const extra = m[2] ? Number(m[2]) : 0
     if (extra >= 60) return null
@@ -59,8 +70,8 @@ export function parseAmount(input: string): ParsedAmount | null {
   m = /^(\d+) ?(?:m|min)$/.exec(s)
   if (m) return { kind: 'duration', minutes: Number(m[1]) }
 
-  // 8 / 8,3 / 8.25 → Dezimalstunden
-  m = /^(\d+(?:[.,]\d+)?)$/.exec(s)
+  // 8 / 8,3 / 8.25 / .5 → Dezimalstunden
+  m = DECIMAL_RE.exec(s)
   if (m) return { kind: 'duration', minutes: Math.round(toNumber(m[1]) * 60) }
 
   return null
@@ -98,13 +109,4 @@ export function nowClock(now: Date = new Date()): ClockTime {
 export function formatPercent(percent: number): string {
   const rounded = Math.round(percent * 10) / 10
   return `${String(rounded).replace('.', ',')} %`
-}
-
-/** Wie parseDuration, erlaubt aber ein Vorzeichen: '+3:20', '-1:30', '−0:45'. */
-export function parseSignedDuration(input: string): Minutes | null {
-  const s = input.trim()
-  const negative = /^[-−]/.test(s)
-  const minutes = parseDuration(s.replace(/^[-−+]\s*/, ''))
-  if (minutes === null) return null
-  return negative ? -minutes : minutes
 }

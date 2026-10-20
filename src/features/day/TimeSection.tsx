@@ -4,23 +4,18 @@ import { clockToMinutes, formatDuration, formatSignedDuration, minutesToClock, n
 import { newId } from '../../domain/id'
 import { clockIn as clockInDay, confirmPlan, editBlock, hasPlannedBlocks } from '../../domain/plan'
 import type { WeekSummary } from '../../domain/target'
-import type { Day, ISODate, Minutes, TimeBlock, TimeMode } from '../../domain/types'
+import type { Day, Minutes, TimeBlock, TimeMode } from '../../domain/types'
 import { Icon } from '../../components/Icon'
 import { CommitInput, TimeInput } from '../../components/inputs'
 import { Segmented } from '../../components/Segmented'
-import { href } from '../../lib/router'
 
-/** Soll und Überstunden rund um diesen Tag. */
+/** Soll und Überstunden dieses Tages und seiner Woche (bewusst kein Gesamtsaldo). */
 export interface DayBalance {
   target: Minutes
   /** Ist − Soll dieses Tages. */
   dayDiff: Minutes
-  /** Ist für diesen Tag schon etwas erfasst (sonst zählt er mit 0 h)? */
+  /** Ist für diesen Tag schon etwas erfasst? */
   recorded: boolean
-  /** Saldo nach diesem Tag; null für Tage in der Zukunft oder vor dem Startdatum. */
-  after: Minutes | null
-  /** Vergangene Arbeitstage ohne Eintrag (vor diesem Tag). */
-  missingDays: ISODate[]
   /** Woche Mo–So: gearbeitet, Soll, Höchstarbeitszeit. */
   week: WeekSummary
 }
@@ -213,7 +208,7 @@ function TotalEditor({ day, onChange }: Pick<Props, 'day' | 'onChange'>) {
 }
 
 function BalanceLine({ balance }: { balance: DayBalance }) {
-  const { target, dayDiff, recorded, after, missingDays } = balance
+  const { target, dayDiff, recorded } = balance
   return (
     <div className="balance-line" data-testid="balance-line">
       <span>
@@ -223,17 +218,7 @@ function BalanceLine({ balance }: { balance: DayBalance }) {
         Tag <strong className="num" data-testid="day-diff">{formatSignedDuration(dayDiff)}</strong>
         {!recorded && target > 0 && <span className="muted"> (noch nichts erfasst)</span>}
       </span>
-      {after !== null && (
-        <span className={after < 0 ? 'is-minus' : after > 0 ? 'is-plus' : undefined}>
-          Überstunden-Saldo <strong className="num" data-testid="balance-after">{formatSignedDuration(after)}</strong>
-        </span>
-      )}
       <WeekLine week={balance.week} />
-      {missingDays.length > 0 && (
-        <a className="balance-line__missing" href={href.day(missingDays[0])}>
-          {missingDays.length === 1 ? '1 Arbeitstag' : `${missingDays.length} Arbeitstage`} ohne Eintrag (zählen mit 0 h)
-        </a>
-      )}
     </div>
   )
 }
