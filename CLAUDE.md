@@ -43,6 +43,7 @@ In der Cloud-Umgebung nutzt Playwright das vorinstallierte Chromium unter `/opt/
 - Buchungsziel: Projekt + Tätigkeitsart (Büro/Meeting).
 - Lineares Blockmodell: Jede Zeile gehört zu einem Block (`domain/blockAssign.ts`: gültige `blockId`, sonst Fluss in den Block mit Platz); Reihenfolge im `allocations`-Array = Reihenfolge im Block. Modi: `duration` (h:mm, oben gesperrt), `timeline` (oben ziehbar), `percent`, `rest` (Tag), `blockRest` (Block). Moduswechsel verschieben nichts. Verschieben/Einfügen nur über `moveAllocation`/`insertSegment` (`domain/timeline.ts`).
 - „Voraussichtlich gehen“ (`domain/forecast.ts`): `TimeBlock.expectedEnd` nur bei laufendem Block, sonst Vorlage; wirksam nie vor jetzt. Die Zeitleiste zeichnet bis dahin (`displayMinutes`, Segment `future`), verteilt wird nur bis jetzt.
+- „Gehen um“ (`domain/endTimes.ts`): Pflichtpause einmal täglich ≥ 30 min am Stück (`MIN_BREAK_MINUTES`); Ziel = Arbeitszeit der Vorlage.
 - „Gerade aktiv“ (`domain/nowWorking.ts`) hat kein eigenes Datenfeld: aktiv = `blockRest` im laufenden Block.
 - Verteilung (`domain/allocation.ts`), in dieser Reihenfolge:
   1. feste Dauern und Prozentwerte; `blockRest` bekommt, was in seinem Block neben allen festen Zeilen frei ist

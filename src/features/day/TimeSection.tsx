@@ -3,6 +3,7 @@ import { analyzeBlocks, type BlockIssue } from '../../domain/dayTotal'
 import { clockToMinutes, formatDuration, formatSignedDuration, minutesToClock, nowClock, parseDuration } from '../../domain/duration'
 import { newId } from '../../domain/id'
 import { clockIn as clockInDay, confirmPlan, editBlock, hasPlannedBlocks } from '../../domain/plan'
+import { MIN_BREAK_MINUTES, type EndTimes } from '../../domain/endTimes'
 import type { ExpectedEnd } from '../../domain/forecast'
 import type { WeekSummary } from '../../domain/target'
 import type { Day, Minutes, TimeBlock, TimeMode } from '../../domain/types'
@@ -26,6 +27,10 @@ export interface DayBalance {
     dayDiff: Minutes
     week: WeekSummary
   } | null
+  /** Nur heute: bis wann für Soll bzw. Ziel arbeiten. */
+  endTimes: EndTimes | null
+  /** Tagesziel mit Überstunden (Arbeitszeit der Vorlage, z.B. 9:00). */
+  goal: Minutes
 }
 
 interface Props {
@@ -71,6 +76,20 @@ export function TimeSection({ day, isToday, nowMinutes, worked, balance, onChang
       )}
 
       <BalanceLine balance={balance} />
+      {balance.endTimes && (
+        <EndTimesView
+          ends={balance.endTimes}
+          target={balance.target}
+          goal={balance.goal}
+          runningBlockId={day.blocks.find((b) => b.end === null && !b.planned)?.id ?? null}
+          onPick={(blockId, minutes) =>
+            onChange((d) => ({
+              ...d,
+              blocks: d.blocks.map((b) => (b.id === blockId ? { ...b, expectedEnd: minutesToClock(minutes) } : b)),
+            }))
+          }
+        />
+      )}
 
       <div className="worked-total">
         <span>{day.timeMode === 'blocks' && hasPlannedBlocks(day) ? 'Gearbeitet (inkl. geplant)' : 'Gearbeitet'}</span>
@@ -273,6 +292,72 @@ function BalanceLine({ balance }: { balance: DayBalance }) {
       </span>
       {balance.forecast && !balance.forecast.expected.isPast && <ForecastLine forecast={balance.forecast} />}
       <WeekLine week={balance.week} />
+    </div>
+  )
+}
+
+/** „Feierabend“: bis wann für Soll und Ziel arbeiten (inkl. vorgeschriebener Pause). */
+function EndTimesView({
+  ends,
+  target,
+  goal,
+  runningBlockId,
+  onPick,
+}: {
+  ends: EndTimes
+  target: Minutes
+  goal: Minutes
+  runningBlockId: string | null
+  onPick: (blockId: string, minutes: Minutes) => void
+}) {
+  const goals = [
+    { key: 'soll', label: 'Soll', minutes: target },
+    { key: 'ziel', label: 'Ziel', minutes: goal },
+  ].filter((g, i, all) => g.minutes > 0 && (i === 0 || g.minutes !== all[0].minutes))
+  if (goals.length === 0) return null
+
+  let note: string
+  if (ends.state === 'break' && !ends.breakDone) note = `Pause läuft – weiter frühestens um ${minutesToClock(ends.resume)}`
+  else if (ends.state === 'break') note = 'wenn du jetzt wieder kommst · Pause ✓'
+  else if (ends.state === 'not-started') note = `wenn du jetzt kommst · inkl. ${MIN_BREAK_MINUTES} min Pause`
+  else if (ends.breakAdded > 0) note = `inkl. ${MIN_BREAK_MINUTES} min Pause (noch nicht genommen)`
+  else note = 'Pause ✓'
+
+  return (
+    <div className="end-times" data-testid="end-times">
+      <span className="end-times__title">Gehen um</span>
+      {goals.map((g) => {
+        const at = ends.at(g.minutes)
+        const text = at === null ? '✓ erreicht' : at >= 24 * 60 ? '–' : minutesToClock(at)
+        const content = (
+          <>
+            <span className="end-times__label">
+              {g.label} {formatDuration(g.minutes)}
+            </span>
+            <strong className="num" data-testid={`end-${g.key}`}>
+              {text}
+            </strong>
+          </>
+        )
+        return runningBlockId && at !== null && at < 24 * 60 ? (
+          <button
+            key={g.key}
+            type="button"
+            className="end-times__tile"
+            title="Als „voraussichtlich bis“ übernehmen"
+            onClick={() => onPick(runningBlockId, at)}
+          >
+            {content}
+          </button>
+        ) : (
+          <span key={g.key} className={`end-times__tile${at === null ? ' is-done' : ''}`}>
+            {content}
+          </span>
+        )
+      })}
+      <span className="muted small" data-testid="end-note">
+        {note}
+      </span>
     </div>
   )
 }

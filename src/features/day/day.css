@@ -746,3 +746,52 @@
 .forecast-line strong {
   color: var(--text);
 }
+
+/* ---------- Gehen um (Soll / Ziel) ---------- */
+.end-times {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+.end-times__title {
+  font-weight: 650;
+  margin-right: 0.2rem;
+}
+
+.end-times__tile {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+}
+
+button.end-times__tile {
+  cursor: pointer;
+}
+
+button.end-times__tile:hover,
+button.end-times__tile:focus-visible {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.end-times__tile strong {
+  font-size: 1.1rem;
+}
+
+.end-times__tile.is-done strong {
+  color: var(--ok);
+}
+
+.end-times__label {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
