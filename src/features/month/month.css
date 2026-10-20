@@ -247,3 +247,34 @@
   font-size: 0.75rem;
   color: var(--text-muted);
 }
+
+/* Feiertage wie Wochenenden grau (arbeitsfrei), im Kopf zusätzlich kursiv; Name im Tooltip */
+.month-grid .is-holiday,
+.month-grid thead th.is-holiday {
+  background: var(--weekend);
+}
+
+.month-grid thead th.is-holiday .dn {
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+.month-grid .target-row th,
+.month-grid .target-row td {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.month-grid .is-minus,
+.month-head__totals .is-minus dd {
+  color: var(--danger);
+}
+
+.month-grid .is-plus,
+.month-head__totals .is-plus dd {
+  color: var(--ok);
+}
+
+.month-empty {
+  margin: 0;
+}

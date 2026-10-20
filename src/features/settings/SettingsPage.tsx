@@ -1,10 +1,19 @@
-import { useEffect, useState } from 'react'
-import { todayISO } from '../../domain/date'
-import { clockToMinutes, formatDuration, minutesToClock } from '../../domain/duration'
+import { useEffect, useState, type FormEvent } from 'react'
+import { formatDateLong, isISODate, todayISO, weekdayName } from '../../domain/date'
+import {
+  clockToMinutes,
+  formatDuration,
+  formatSignedDuration,
+  minutesToClock,
+  parseDuration,
+  parseSignedDuration,
+} from '../../domain/duration'
+import { HOLIDAY_REGIONS, holidaysInYear } from '../../domain/holidays'
 import { isValidTemplate } from '../../domain/plan'
-import type { ActivityType, Project, Settings, TemplateBlock } from '../../domain/types'
+import { weeklyTarget } from '../../domain/target'
+import type { ActivityType, HolidayRegion, Minutes, Project, Settings, TemplateBlock } from '../../domain/types'
 import { Icon } from '../../components/Icon'
-import { TimeInput } from '../../components/inputs'
+import { CommitInput, TimeInput } from '../../components/inputs'
 import { useToast } from '../../components/Toast'
 import { downloadFile, formatDateTime, pickTextFile } from '../../lib/browser'
 import {
@@ -16,7 +25,7 @@ import {
 } from '../../storage/backup'
 import { backupFileName, collectBackup, ImportError, parseBackup, restoreBackup, serializeBackup } from '../../storage/exportImport'
 import { useActivityTypes, useBackupState, useProjects, useSettings } from '../../storage/hooks'
-import { updateSettings } from '../../storage/repo'
+import { changeSettings, updateSettings } from '../../storage/repo'
 
 export function SettingsPage() {
   const settings = useSettings()
@@ -28,6 +37,8 @@ export function SettingsPage() {
     <div className="page page--narrow">
       <BackupCard showToast={showToast} />
       <ExportImportCard showToast={showToast} />
+      <WorkTimeCard settings={settings} />
+      <HolidayCard settings={settings} />
       <TemplateCard settings={settings} />
       <FillCard settings={settings} projects={projects} activityTypes={activityTypes} />
       <PrivacyCard />
@@ -217,10 +228,200 @@ function FillCard({ settings, projects, activityTypes }: { settings: Settings; p
   )
 }
 
+function WorkTimeCard({ settings }: { settings: Settings }) {
+  const setTarget = (index: number, minutes: Minutes) =>
+    void changeSettings((s) => ({ weekdayTargets: s.weekdayTargets.map((m, i) => (i === index ? minutes : m)) }))
+
+  return (
+    <section className="card">
+      <header className="card__head">
+        <h2>Soll-Arbeitszeit &amp; Überstunden</h2>
+        <span className="muted small">
+          Woche: <strong className="num">{formatDuration(weeklyTarget(settings))}</strong>
+        </span>
+      </header>
+      <div className="weekday-targets">
+        {settings.weekdayTargets.map((minutes, i) => (
+          <label key={i} className="field">
+            <span className="field__label">{weekdayName(i)}</span>
+            <CommitInput
+              className="input input--amount"
+              aria-label={`Soll ${weekdayName(i)}`}
+              value={formatDuration(minutes)}
+              onCommit={(text) => {
+                const parsed = text.trim() === '' ? 0 : parseDuration(text)
+                if (parsed === null) return null
+                setTarget(i, parsed)
+                return formatDuration(parsed)
+              }}
+            />
+          </label>
+        ))}
+      </div>
+      <div className="balance-start">
+        <label className="field">
+          <span className="field__label">Überstunden-Übertrag</span>
+          <CommitInput
+            className="input input--amount"
+            aria-label="Überstunden-Übertrag"
+            placeholder="+0:00"
+            value={formatSignedDuration(settings.balanceStart.minutes)}
+            onCommit={(text) => {
+              const minutes = text.trim() === '' ? 0 : parseSignedDuration(text)
+              if (minutes === null) return null
+              void changeSettings((s) => ({ balanceStart: { ...s.balanceStart, minutes } }))
+              return formatSignedDuration(minutes)
+            }}
+          />
+        </label>
+        <label className="field">
+          <span className="field__label">gilt ab (Stichtag)</span>
+          <input
+            type="date"
+            className="input"
+            aria-label="Stichtag Überstunden"
+            value={settings.balanceStart.date}
+            onChange={(e) => {
+              const date = e.target.value // jetzt lesen – beim Speichern zeigt das Feld evtl. schon wieder den alten Wert
+              if (isISODate(date)) void changeSettings((s) => ({ balanceStart: { ...s.balanceStart, date } }))
+            }}
+          />
+        </label>
+      </div>
+      <p className="muted small">
+        Saldo = Übertrag + (gearbeitet − Soll) für jeden Tag ab dem Stichtag. Feiertage haben kein Soll. Urlaub,
+        Krankheit und Überstundenabbau trägst du wie gewohnt als Projekt ein. Tipp: Übertrag und Stichtag aus der
+        Firmensoftware übernehmen, z.B. Stand Monatsanfang.
+      </p>
+    </section>
+  )
+}
+
+function HolidayCard({ settings }: { settings: Settings }) {
+  const [year, setYear] = useState(() => Number(todayISO().slice(0, 4)))
+  const [name, setName] = useState('')
+  const [date, setDate] = useState('')
+  const [share, setShare] = useState<1 | 0.5>(1)
+  const holidays = holidaysInYear(year, settings)
+
+  const toggle = (key: string, enabled: boolean) =>
+    void changeSettings((s) => ({ holidayOverrides: { ...s.holidayOverrides, [key]: enabled } }))
+  const removeCustom = (customDate: string) =>
+    void changeSettings((s) => ({ customHolidays: s.customHolidays.filter((c) => c.date !== customDate) }))
+  const addCustom = (e: FormEvent) => {
+    e.preventDefault()
+    if (!isISODate(date) || !name.trim()) return
+    const entry = { date, name: name.trim(), share }
+    void changeSettings((s) => ({ customHolidays: [...s.customHolidays.filter((c) => c.date !== entry.date), entry] }))
+    setName('')
+    setDate('')
+  }
+
+  return (
+    <section className="card">
+      <header className="card__head">
+        <h2>Feiertage</h2>
+      </header>
+      <label className="field">
+        <span className="field__label">Arbeitsort</span>
+        <select
+          className="input"
+          aria-label="Arbeitsort"
+          value={settings.holidayRegion}
+          onChange={(e) => void updateSettings({ holidayRegion: e.target.value as HolidayRegion })}
+        >
+          {(Object.keys(HOLIDAY_REGIONS) as HolidayRegion[]).map((r) => (
+            <option key={r} value={r}>
+              {HOLIDAY_REGIONS[r].label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <div className="holiday-year">
+        <button type="button" className="icon-btn icon-btn--subtle" aria-label="Vorheriges Jahr" onClick={() => setYear(year - 1)}>
+          <Icon name="chevron-left" />
+        </button>
+        <strong className="num">{year}</strong>
+        <button type="button" className="icon-btn icon-btn--subtle" aria-label="Nächstes Jahr" onClick={() => setYear(year + 1)}>
+          <Icon name="chevron-right" />
+        </button>
+      </div>
+
+      {holidays.length === 0 ? (
+        <p className="muted">Keine Feiertage.</p>
+      ) : (
+        <ul className="check-list" data-testid="holiday-list">
+          {holidays.map((h) => (
+            <li key={h.key + h.date}>
+              <div className="check-row">
+                {h.custom ? (
+                  <span className="holiday-custom-mark" title="Eigener Tag">
+                    <Icon name="check" />
+                  </span>
+                ) : (
+                  <input
+                    type="checkbox"
+                    checked={h.enabled}
+                    aria-label={`${h.name} als Feiertag`}
+                    onChange={(e) => toggle(h.key, e.target.checked)}
+                  />
+                )}
+                <span className="num holiday-date">{formatDateLong(h.date)}</span>
+                <span className={`check-row__name${h.enabled ? '' : ' muted'}`}>{h.name}</span>
+                {h.share < 1 && <span className="badge badge--muted">½ Tag</span>}
+                {h.custom && <span className="badge badge--new">eigener Tag</span>}
+                {h.custom && (
+                  <button
+                    type="button"
+                    className="icon-btn icon-btn--subtle holiday-remove"
+                    aria-label={`${h.name} entfernen`}
+                    onClick={() => removeCustom(h.date)}
+                  >
+                    <Icon name="x" />
+                  </button>
+                )}
+                {h.note && <span className="check-row__hint">{h.note}</span>}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <form className="add-form holiday-add" onSubmit={addCustom}>
+        <input type="date" className="input" aria-label="Eigener Feiertag Datum" value={date} onChange={(e) => setDate(e.target.value)} />
+        <input
+          className="input add-form__name"
+          placeholder="Eigener freier Tag, z.B. Heiligabend"
+          aria-label="Eigener Feiertag Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <select
+          className="input"
+          aria-label="Eigener Feiertag Umfang"
+          value={String(share)}
+          onChange={(e) => setShare(e.target.value === '0.5' ? 0.5 : 1)}
+        >
+          <option value="1">ganzer Tag</option>
+          <option value="0.5">halber Tag</option>
+        </select>
+        <button type="submit" className="btn" disabled={!name.trim() || !isISODate(date)}>
+          <Icon name="plus" /> Hinzufügen
+        </button>
+      </form>
+      <p className="muted small">An Feiertagen gibt es kein Soll und keine Vorlage „normaler Arbeitstag“; an halben Tagen das halbe Soll.</p>
+    </section>
+  )
+}
+
 function TemplateCard({ settings }: { settings: Settings }) {
   const template = settings.dayTemplate ?? []
-  const save = (next: TemplateBlock[]) => void updateSettings({ dayTemplate: next })
-  const update = (i: number, patch: Partial<TemplateBlock>) => save(template.map((b, j) => (j === i ? { ...b, ...patch } : b)))
+  // Immer auf dem gespeicherten Stand aufbauen (schnelles Ändern von Beginn und Ende hintereinander).
+  const changeTemplate = (fn: (current: TemplateBlock[]) => TemplateBlock[]) =>
+    void changeSettings((s) => ({ dayTemplate: fn(s.dayTemplate ?? []) }))
+  const update = (i: number, patch: Partial<TemplateBlock>) =>
+    changeTemplate((current) => current.map((b, j) => (j === i ? { ...b, ...patch } : b)))
   const valid = isValidTemplate(template)
 
   return (
@@ -255,7 +456,7 @@ function TemplateCard({ settings }: { settings: Settings }) {
               type="button"
               className="icon-btn icon-btn--subtle"
               aria-label={`Vorlage Block ${i + 1} entfernen`}
-              onClick={() => save(template.filter((_, j) => j !== i))}
+              onClick={() => changeTemplate((current) => current.filter((_, j) => j !== i))}
             >
               <Icon name="x" />
             </button>
@@ -267,9 +468,11 @@ function TemplateCard({ settings }: { settings: Settings }) {
             type="button"
             className="btn btn--small"
             onClick={() => {
-              const lastEnd = template.at(-1)?.end ?? '07:30'
-              const start = minutesToClock(Math.min(clockToMinutes(lastEnd) + 30, 22 * 60))
-              save([...template, { start, end: minutesToClock(clockToMinutes(start) + 60) }])
+              changeTemplate((current) => {
+                const lastEnd = current.at(-1)?.end ?? '07:30'
+                const start = minutesToClock(Math.min(clockToMinutes(lastEnd) + 30, 22 * 60))
+                return [...current, { start, end: minutesToClock(clockToMinutes(start) + 60) }]
+              })
             }}
           >
             <Icon name="plus" /> Block

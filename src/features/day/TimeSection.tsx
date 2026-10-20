@@ -1,17 +1,32 @@
 import { analyzeBlocks, type BlockIssue } from '../../domain/dayTotal'
-import { clockToMinutes, formatDuration, minutesToClock, nowClock, parseDuration } from '../../domain/duration'
+import { clockToMinutes, formatDuration, formatSignedDuration, minutesToClock, nowClock, parseDuration } from '../../domain/duration'
 import { newId } from '../../domain/id'
 import { clockIn as clockInDay, confirmPlan, editBlock, hasPlannedBlocks } from '../../domain/plan'
-import type { Day, Minutes, TimeBlock, TimeMode } from '../../domain/types'
+import type { Day, ISODate, Minutes, TimeBlock, TimeMode } from '../../domain/types'
 import { Icon } from '../../components/Icon'
 import { CommitInput, TimeInput } from '../../components/inputs'
 import { Segmented } from '../../components/Segmented'
+import { href } from '../../lib/router'
+
+/** Soll und Überstunden rund um diesen Tag. */
+export interface DayBalance {
+  target: Minutes
+  /** Ist − Soll dieses Tages. */
+  dayDiff: Minutes
+  /** Ist für diesen Tag schon etwas erfasst (sonst zählt er mit 0 h)? */
+  recorded: boolean
+  /** Saldo nach diesem Tag; null für Tage in der Zukunft oder vor dem Startdatum. */
+  after: Minutes | null
+  /** Vergangene Arbeitstage ohne Eintrag (vor diesem Tag). */
+  missingDays: ISODate[]
+}
 
 interface Props {
   day: Day
   isToday: boolean
   nowMinutes: Minutes | null
   worked: Minutes | null
+  balance: DayBalance
   onChange: (fn: (day: Day) => Day) => void
 }
 
@@ -20,7 +35,7 @@ const MODES = [
   { value: 'total' as const, label: 'Gesamtzeit', title: 'Arbeitszeit direkt eintragen' },
 ]
 
-export function TimeSection({ day, isToday, nowMinutes, worked, onChange }: Props) {
+export function TimeSection({ day, isToday, nowMinutes, worked, balance, onChange }: Props) {
   const setMode = (mode: TimeMode) =>
     onChange((d) => ({
       ...d,
@@ -42,6 +57,8 @@ export function TimeSection({ day, isToday, nowMinutes, worked, onChange }: Prop
         <TotalEditor day={day} onChange={onChange} />
       )}
 
+      <BalanceLine balance={balance} />
+
       <div className="worked-total">
         <span>{day.timeMode === 'blocks' && hasPlannedBlocks(day) ? 'Gearbeitet (inkl. geplant)' : 'Gearbeitet'}</span>
         <strong className="num" data-testid="worked-total">
@@ -52,7 +69,7 @@ export function TimeSection({ day, isToday, nowMinutes, worked, onChange }: Prop
   )
 }
 
-function BlocksEditor({ day, isToday, nowMinutes, onChange }: Omit<Props, 'worked'>) {
+function BlocksEditor({ day, isToday, nowMinutes, onChange }: Omit<Props, 'worked' | 'balance'>) {
   const analysis = analyzeBlocks(day.blocks, nowMinutes)
   const running = day.blocks.find((b) => b.end === null)
   const isRunning = (b: TimeBlock) => b.end === null && analysis.running
@@ -187,6 +204,31 @@ function TotalEditor({ day, onChange }: Pick<Props, 'day' | 'onChange'>) {
         />
       </label>
       <p className="muted small">Formate: 8:18 · 8,3 · 8h18 · 498m</p>
+    </div>
+  )
+}
+
+function BalanceLine({ balance }: { balance: DayBalance }) {
+  const { target, dayDiff, recorded, after, missingDays } = balance
+  return (
+    <div className="balance-line" data-testid="balance-line">
+      <span>
+        Soll <strong className="num">{formatDuration(target)}</strong>
+      </span>
+      <span className={dayDiff < 0 ? 'is-minus' : dayDiff > 0 ? 'is-plus' : undefined}>
+        Tag <strong className="num" data-testid="day-diff">{formatSignedDuration(dayDiff)}</strong>
+        {!recorded && target > 0 && <span className="muted"> (noch nichts erfasst)</span>}
+      </span>
+      {after !== null && (
+        <span className={after < 0 ? 'is-minus' : after > 0 ? 'is-plus' : undefined}>
+          Überstunden-Saldo <strong className="num" data-testid="balance-after">{formatSignedDuration(after)}</strong>
+        </span>
+      )}
+      {missingDays.length > 0 && (
+        <a className="balance-line__missing" href={href.day(missingDays[0])}>
+          {missingDays.length === 1 ? '1 Arbeitstag' : `${missingDays.length} Arbeitstage`} ohne Eintrag (zählen mit 0 h)
+        </a>
+      )}
     </div>
   )
 }

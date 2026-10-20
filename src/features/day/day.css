@@ -462,3 +462,39 @@
 .timeline__block.is-planned .timeline__segment.is-open {
   color: var(--text-muted);
 }
+
+/* ---------- Soll / Überstunden ---------- */
+.balance-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem 1.25rem;
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.balance-line strong {
+  color: var(--text);
+}
+
+.balance-line .is-plus strong {
+  color: var(--ok);
+}
+
+.balance-line .is-minus strong {
+  color: var(--danger);
+}
+
+.balance-line__missing {
+  font-size: 0.82rem;
+  color: var(--warn);
+}
+
+.balance-line + .worked-total {
+  margin-top: 0.4rem;
+  padding-top: 0;
+  border-top: 0;
+}

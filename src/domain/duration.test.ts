@@ -7,6 +7,7 @@ import {
   minutesToClock,
   parseAmount,
   parseDuration,
+  parseSignedDuration,
 } from './duration'
 
 describe('formatDuration', () => {
@@ -74,5 +75,15 @@ describe('formatPercent', () => {
   it('nutzt Dezimalkomma', () => {
     expect(formatPercent(50)).toBe('50 %')
     expect(formatPercent(33.333)).toBe('33,3 %')
+  })
+})
+
+describe('parseSignedDuration', () => {
+  it('versteht Vorzeichen', () => {
+    expect(parseSignedDuration('+3:20')).toBe(200)
+    expect(parseSignedDuration('-1:30')).toBe(-90)
+    expect(parseSignedDuration('−0:45')).toBe(-45)
+    expect(parseSignedDuration('2')).toBe(120)
+    expect(parseSignedDuration('x')).toBeNull()
   })
 })

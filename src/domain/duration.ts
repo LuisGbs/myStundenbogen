@@ -99,3 +99,12 @@ export function formatPercent(percent: number): string {
   const rounded = Math.round(percent * 10) / 10
   return `${String(rounded).replace('.', ',')} %`
 }
+
+/** Wie parseDuration, erlaubt aber ein Vorzeichen: '+3:20', '-1:30', '−0:45'. */
+export function parseSignedDuration(input: string): Minutes | null {
+  const s = input.trim()
+  const negative = /^[-−]/.test(s)
+  const minutes = parseDuration(s.replace(/^[-−+]\s*/, ''))
+  if (minutes === null) return null
+  return negative ? -minutes : minutes
+}

@@ -90,7 +90,8 @@ export interface Day {
   updatedAt: string
 }
 
-export type HolidayRegion = 'CH-BL' | 'none'
+/** Arbeitsort für die gesetzlichen Feiertage. */
+export type HolidayRegion = 'CH-BL' | 'DE-BW' | 'DE-BY' | 'DE-RP' | 'none'
 
 export interface CustomHoliday {
   date: ISODate

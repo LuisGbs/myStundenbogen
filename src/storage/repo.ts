@@ -198,3 +198,14 @@ export async function recentProjectIds(date: ISODate, limit = 6): Promise<string
 export async function updateSettings(patch: Partial<Omit<Settings, 'id'>>): Promise<void> {
   await db.settings.update('settings', patch)
 }
+
+/**
+ * Änderung, die auf dem aktuellen Stand aufbaut (z.B. ein Feld in balanceStart):
+ * liest und schreibt in einer Transaktion, damit schnelle Folgeänderungen nichts überschreiben.
+ */
+export async function changeSettings(fn: (current: Settings) => Partial<Omit<Settings, 'id'>>): Promise<void> {
+  await db.transaction('rw', db.settings, async () => {
+    const current = await db.settings.get('settings')
+    if (current) await db.settings.update('settings', fn(current))
+  })
+}
