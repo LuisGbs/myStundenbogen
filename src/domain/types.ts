@@ -48,6 +48,11 @@ export interface Allocation {
   mode: AllocationMode
   value: number
   note: string
+  /**
+   * Stempel-Block, in dem die Zeile auf der Zeitleiste liegt (TimeBlock.id bzw.
+   * 'gesamt' bei Gesamtzeit). Nur für feste Dauern; fehlt = frei verteilt.
+   */
+  blockId?: string
 }
 
 export type AbsenceKind = 'vacation' | 'sick' | 'paid-other' | 'comp-time'

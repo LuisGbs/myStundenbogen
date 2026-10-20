@@ -1,9 +1,21 @@
-import { useRef, useState, type PointerEvent } from 'react'
+import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import type { AllocationResult } from '../../domain/allocation'
+import { summarizeDay } from '../../domain/day'
 import { formatDuration } from '../../domain/duration'
 import { newId } from '../../domain/id'
-import { blockShareMinutes, layoutTimeline, type TimelineLayout } from '../../domain/timeline'
-import type { ActivityType, Day, Minutes, Project } from '../../domain/types'
+import {
+  insertSegment,
+  layoutTimeline,
+  maxSegmentMinutes,
+  MIN_SEGMENT_MINUTES,
+  resizeSegment,
+  snapMinutes,
+  SNAP_MINUTES,
+  type TimelineBlock,
+  type TimelineSegment,
+} from '../../domain/timeline'
+import type { ActivityType, Allocation, Day, Minutes, Project } from '../../domain/types'
+import { Icon } from '../../components/Icon'
 import { Segmented } from '../../components/Segmented'
 import { useProjectsByRecency } from './useProjectsByRecency'
 
@@ -16,23 +28,27 @@ interface Props {
   onChange: (fn: (day: Day) => Day) => void
 }
 
-/** Offene Zuordnung: welches Projekt, welcher Block, welcher Anteil. */
-interface Draft {
-  projectId: string
-  blockIndex: number
-  activityTypeId: string
-  share: number
-}
-
-/** Laufendes Ziehen eines Projekt-Chips (Pointer Events → Maus und Touch). */
-interface Drag {
+/** Ziehen eines Projekt-Chips in einen Block (Pointer Events → Maus und Touch). */
+interface ChipDrag {
   projectId: string
   startX: number
   startY: number
   x: number
   y: number
   active: boolean
-  overBlock: number | null
+  overBlock: string | null
+}
+
+/** Ziehen am rechten Rand eines Segments. */
+interface Resize {
+  allocationId: string
+  blockMinutes: Minutes
+  startX: number
+  startValue: Minutes
+  pxPerMinute: number
+  value: Minutes
+  /** Losgelassen und gespeichert – Vorschau bleibt, bis der neue Wert aus der Datenbank da ist. */
+  committed: boolean
 }
 
 const SHARE_PRESETS = [
@@ -42,75 +58,173 @@ const SHARE_PRESETS = [
   { share: 100, label: 'Ganz' },
 ]
 
-function blockAt(x: number, y: number): number | null {
-  const el = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-block-index]')
-  return el ? Number(el.dataset.blockIndex) : null
+/** Block unter dem Zeiger und die Uhrzeit (Minute) an dieser Stelle. */
+function blockAt(x: number, y: number, blocks: TimelineBlock[]): { block: TimelineBlock; minute: Minutes } | null {
+  const el = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-block-id]')
+  const block = el && blocks.find((b) => b.id === el.dataset.blockId)
+  if (!el || !block) return null
+  const rect = el.getBoundingClientRect()
+  return { block, minute: block.start + ((x - rect.left) / rect.width) * block.minutes }
 }
 
 export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, onChange }: Props) {
   const byRecency = useProjectsByRecency(day.date, projects)
-  const [draft, setDraft] = useState<Draft | null>(null)
-  const [drag, setDrag] = useState<Drag | null>(null)
-  const dragRef = useRef<Drag | null>(null)
+  const [chipDrag, setChipDrag] = useState<ChipDrag | null>(null)
+  const chipDragRef = useRef<ChipDrag | null>(null)
+  const [resize, setResize] = useState<Resize | null>(null)
+  const resizeRef = useRef<Resize | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
 
-  const layout = layoutTimeline(day, result, nowMinutes)
+  // Während des Ziehens am Rand: Vorschau mit der neuen Dauer (gespeichert wird beim Loslassen).
+  const shownDay = resize
+    ? { ...day, allocations: resizeSegment(day.allocations, resize.allocationId, resize.value, resize.blockMinutes) }
+    : day
+  if (resize?.committed) {
+    const saved = day.allocations.find((a) => a.id === resize.allocationId)?.value
+    const shown = shownDay.allocations.find((a) => a.id === resize.allocationId)?.value
+    if (saved === undefined || saved === shown) setResize(null)
+  }
+  const shownResult = resize ? summarizeDay(shownDay, nowMinutes).allocation : result
+  const layout = layoutTimeline(shownDay, shownResult, nowMinutes)
   if (!layout) return null
 
-  const activeTypes = activityTypes.filter((a) => a.active)
-  const defaultTypeId = (activeTypes[0] ?? activityTypes[0])?.id ?? ''
+  const defaultTypeId = (activityTypes.find((a) => a.active) ?? activityTypes[0])?.id ?? ''
+  const allocationById = new Map(shownDay.allocations.map((a) => [a.id, a]))
+  const projectById = new Map(projects.map((p) => [p.id, p]))
+  const activityById = new Map(activityTypes.map((a) => [a.id, a]))
 
-  const openDraft = (projectId: string | null, blockIndex: number | null) =>
-    setDraft((prev) => ({
-      projectId: projectId ?? prev?.projectId ?? byRecency[0]?.id ?? '',
-      blockIndex: blockIndex ?? prev?.blockIndex ?? layout.blocks[0].index,
-      activityTypeId: prev?.activityTypeId ?? defaultTypeId,
-      share: prev?.share ?? 50,
-    }))
-
-  // Der Zeiger-Zustand steht im Ref (Handler lesen immer den aktuellen Stand),
-  // der State nur für die Anzeige (Ghost-Chip, hervorgehobener Block).
-  const updateDrag = (next: Drag | null) => {
-    dragRef.current = next
-    setDrag(next)
+  const segmentName = (a: Allocation | undefined): string => {
+    if (!a) return 'offen'
+    const t = activityById.get(a.activityTypeId)
+    return `${projectById.get(a.projectId)?.name ?? '?'}${t ? ` · ${t.name}` : ''}`
   }
-  const isDragged = (d: Drag, x: number, y: number) => d.active || Math.hypot(x - d.startX, y - d.startY) > 5
+
+  // ---------- Projekt in einen Block einfügen ----------
+
+  const addToBlock = (projectId: string, block: TimelineBlock, minute: Minutes) => {
+    const base = { id: newId(), projectId, activityTypeId: defaultTypeId, note: '' }
+    if (!insertSegment(day.allocations, block, minute, base)) {
+      setMessage(`Der Block ${block.label} ist schon voll belegt – zuerst ein Segment kürzen.`)
+      return
+    }
+    setMessage(null)
+    setSelectedId(base.id)
+    onChange((d) => {
+      const next = insertSegment(d.allocations, block, minute, base)
+      return next ? { ...d, allocations: next } : d
+    })
+  }
+
+  const updateChipDrag = (next: ChipDrag | null) => {
+    chipDragRef.current = next
+    setChipDrag(next)
+  }
+  const isDragged = (d: ChipDrag, x: number, y: number) => d.active || Math.hypot(x - d.startX, y - d.startY) > 5
 
   const chipHandlers = (projectId: string) => ({
     onPointerDown: (e: PointerEvent<HTMLButtonElement>) => {
       if (e.button !== 0) return
       e.currentTarget.setPointerCapture(e.pointerId)
-      updateDrag({ projectId, startX: e.clientX, startY: e.clientY, x: e.clientX, y: e.clientY, active: false, overBlock: null })
+      updateChipDrag({ projectId, startX: e.clientX, startY: e.clientY, x: e.clientX, y: e.clientY, active: false, overBlock: null })
     },
     onPointerMove: (e: PointerEvent<HTMLButtonElement>) => {
-      const d = dragRef.current
+      const d = chipDragRef.current
       if (!d) return
       const active = isDragged(d, e.clientX, e.clientY)
-      updateDrag({ ...d, x: e.clientX, y: e.clientY, active, overBlock: active ? blockAt(e.clientX, e.clientY) : null })
+      const over = active ? blockAt(e.clientX, e.clientY, layout.blocks) : null
+      updateChipDrag({ ...d, x: e.clientX, y: e.clientY, active, overBlock: over?.block.id ?? null })
     },
     onPointerUp: (e: PointerEvent<HTMLButtonElement>) => {
-      const d = dragRef.current
+      const d = chipDragRef.current
       if (!d) return
-      if (!isDragged(d, e.clientX, e.clientY)) {
-        openDraft(d.projectId, null) // einfacher Klick: Block im Panel wählen
-      } else {
-        const over = blockAt(e.clientX, e.clientY)
-        if (over !== null) openDraft(d.projectId, over)
+      updateChipDrag(null)
+      if (isDragged(d, e.clientX, e.clientY)) {
+        const over = blockAt(e.clientX, e.clientY, layout.blocks)
+        if (over) addToBlock(d.projectId, over.block, over.minute)
+        return
       }
-      updateDrag(null)
+      // Einfacher Klick: hinten in den ersten Block mit freiem Platz.
+      const target = layout.blocks.find((b) => b.minutes - b.boundMinutes >= MIN_SEGMENT_MINUTES) ?? layout.blocks[0]
+      addToBlock(d.projectId, target, target.end)
     },
-    onPointerCancel: () => updateDrag(null),
+    onPointerCancel: () => updateChipDrag(null),
   })
 
-  const allocationById = new Map(day.allocations.map((a) => [a.id, a]))
-  const projectById = new Map(projects.map((p) => [p.id, p]))
-  const activityById = new Map(activityTypes.map((a) => [a.id, a]))
-  const dragProject = drag?.active ? projectById.get(drag.projectId) : undefined
+  // ---------- Rand eines Segments ziehen ----------
+
+  const commitResize = (allocationId: string, value: Minutes, blockMinutes: Minutes) => {
+    setMessage(null)
+    onChange((d) => ({ ...d, allocations: resizeSegment(d.allocations, allocationId, value, blockMinutes) }))
+  }
+
+  const updateResize = (next: Resize | null) => {
+    resizeRef.current = next
+    setResize(next)
+  }
+
+  const handleProps = (segment: TimelineSegment, block: TimelineBlock) => {
+    const allocation = allocationById.get(segment.allocationId!)!
+    return {
+      role: 'slider',
+      tabIndex: 0,
+      'aria-label': `Dauer ${segmentName(allocation)}`,
+      'aria-valuemin': MIN_SEGMENT_MINUTES,
+      'aria-valuemax': maxSegmentMinutes(shownDay.allocations, allocation.id, block.minutes),
+      'aria-valuenow': allocation.value,
+      'aria-valuetext': formatDuration(allocation.value),
+      onPointerDown: (e: PointerEvent<HTMLDivElement>) => {
+        if (e.button !== 0) return
+        e.stopPropagation()
+        e.currentTarget.setPointerCapture(e.pointerId)
+        const frame = e.currentTarget.closest<HTMLElement>('[data-block-id]')!
+        updateResize({
+          allocationId: allocation.id,
+          blockMinutes: block.minutes,
+          startX: e.clientX,
+          startValue: allocation.value,
+          pxPerMinute: frame.getBoundingClientRect().width / block.minutes,
+          value: allocation.value,
+          committed: false,
+        })
+      },
+      onPointerMove: (e: PointerEvent<HTMLDivElement>) => {
+        const r = resizeRef.current
+        if (!r || r.committed) return
+        const value = snapMinutes(r.startValue + (e.clientX - r.startX) / r.pxPerMinute)
+        if (value !== r.value) updateResize({ ...r, value })
+      },
+      onPointerUp: () => {
+        const r = resizeRef.current
+        if (!r || r.committed) return
+        if (r.value === r.startValue) {
+          updateResize(null)
+          return
+        }
+        updateResize({ ...r, committed: true })
+        commitResize(r.allocationId, r.value, r.blockMinutes)
+      },
+      onPointerCancel: () => updateResize(null),
+      onClick: (e: { stopPropagation: () => void }) => e.stopPropagation(),
+      onKeyDown: (e: KeyboardEvent<HTMLDivElement>) => {
+        const step = e.shiftKey ? 1 : SNAP_MINUTES
+        const delta = ({ ArrowRight: step, ArrowUp: step, ArrowLeft: -step, ArrowDown: -step } as Record<string, number>)[e.key]
+        if (delta === undefined) return
+        e.preventDefault()
+        commitResize(allocation.id, allocation.value + delta, block.minutes)
+      },
+    }
+  }
+
+  const selected = selectedId ? allocationById.get(selectedId) : undefined
+  const selectedBlock = selected && layout.blocks.find((b) => b.id === selected.blockId)
+  const dragProject = chipDrag?.active ? projectById.get(chipDrag.projectId) : undefined
 
   return (
     <section className="card" data-testid="timeline">
       <header className="card__head">
         <h2>Zeitleiste</h2>
-        <span className="muted small">Projekt auf einen Block ziehen – oder Block anklicken</span>
+        <span className="muted small">Projekt in einen Block ziehen · rechten Rand ziehen zum Anpassen</span>
       </header>
 
       <div className="timeline__palette">
@@ -119,7 +233,7 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
             key={p.id}
             type="button"
             className="chip timeline__chip"
-            title="Auf einen Block ziehen"
+            title="In einen Block ziehen (Klick: in den ersten freien Block)"
             data-testid={`timeline-chip-${p.name}`}
             {...chipHandlers(p.id)}
           >
@@ -129,44 +243,99 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
         ))}
       </div>
 
-      <TimelineBar
-        layout={layout}
-        overBlock={drag?.overBlock ?? null}
-        targetBlock={draft?.blockIndex ?? null}
-        onBlockClick={(index) => openDraft(null, index)}
-        segmentLabel={(allocationId) => {
-          if (allocationId === null) return { name: 'offen', color: null }
-          const a = allocationById.get(allocationId)
-          const p = a && projectById.get(a.projectId)
-          const t = a && activityById.get(a.activityTypeId)
-          return { name: `${p?.name ?? '?'}${t ? ` · ${t.name}` : ''}`, color: p?.color ?? null }
-        }}
-      />
+      <div className={`timeline${resize && !resize.committed ? ' is-resizing' : ''}`}>
+        <div className="timeline__labels">
+          {layout.blocks.map((b) => (
+            <span key={b.id} style={{ left: `${b.left}%`, width: `${b.width}%` }}>
+              {b.label}
+              {layout.mode === 'clock' && <span className="muted"> · {formatDuration(b.minutes)}</span>}
+            </span>
+          ))}
+        </div>
+        <div className="timeline__track">
+          {layout.breaks.map((b) => (
+            <div
+              key={`pause-${b.start}`}
+              className="timeline__break"
+              style={{ left: `${b.left}%`, width: `${b.width}%` }}
+              title={`Pause ${formatDuration(b.end - b.start)}`}
+            />
+          ))}
+          {layout.blocks.map((block) => (
+            <div
+              key={block.id}
+              role="group"
+              aria-label={`Block ${block.label}`}
+              data-block-id={block.id}
+              data-testid={`timeline-block-${block.index}`}
+              className={[
+                'timeline__block',
+                chipDrag?.overBlock === block.id && 'is-over',
+                block.running && 'is-running',
+                block.boundMinutes > block.minutes && 'is-overfull',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              style={{ left: `${block.left}%`, width: `${block.width}%` }}
+            >
+              {block.segments.map((s) => {
+                const allocation = s.allocationId ? allocationById.get(s.allocationId) : undefined
+                const color = allocation ? projectById.get(allocation.projectId)?.color : undefined
+                const name = segmentName(allocation)
+                return (
+                  <div
+                    key={`${s.allocationId ?? 'offen'}-${s.start}`}
+                    className={[
+                      'timeline__segment',
+                      `is-${s.kind}`,
+                      s.overflow && 'is-overflow',
+                      s.allocationId === selectedId && 'is-selected',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                    style={{ left: `${s.left}%`, width: `${s.width}%`, background: s.kind === 'open' ? undefined : color }}
+                    title={`${name} ${formatDuration(s.minutes)}${s.kind === 'floating' ? ' (aus der Liste, nicht an den Block gebunden)' : ''}`}
+                    data-testid={s.kind === 'bound' ? `segment-${name}` : undefined}
+                    onClick={() => s.kind === 'bound' && setSelectedId(s.allocationId)}
+                  >
+                    <span>
+                      {name} {formatDuration(s.minutes)}
+                    </span>
+                    {s.kind === 'bound' && <div className="timeline__handle" {...handleProps(s, block)} />}
+                  </div>
+                )
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
 
-      {draft && (
-        <DraftPanel
-          draft={draft}
-          layout={layout}
-          projects={projects.filter((p) => p.active)}
-          activityTypes={activeTypes.length ? activeTypes : activityTypes}
-          onChange={setDraft}
-          onCancel={() => setDraft(null)}
-          onAdd={(minutes) => {
-            const { projectId, activityTypeId } = draft
+      {message && <p className="timeline__message">{message}</p>}
+
+      {selected && selectedBlock && (
+        <SegmentPanel
+          allocation={selected}
+          block={selectedBlock}
+          projectName={projectById.get(selected.projectId)?.name ?? '?'}
+          color={projectById.get(selected.projectId)?.color}
+          activityTypes={activityTypes.filter((a) => a.active || a.id === selected.activityTypeId)}
+          onActivity={(activityTypeId) =>
             onChange((d) => ({
               ...d,
-              allocations: [
-                ...d.allocations,
-                { id: newId(), projectId, activityTypeId, mode: 'duration', value: minutes, note: '' },
-              ],
+              allocations: d.allocations.map((a) => (a.id === selected.id ? { ...a, activityTypeId } : a)),
             }))
-            setDraft(null)
+          }
+          onShare={(share) => commitResize(selected.id, Math.round((selectedBlock.minutes * share) / 100), selectedBlock.minutes)}
+          onRemove={() => {
+            onChange((d) => ({ ...d, allocations: d.allocations.filter((a) => a.id !== selected.id) }))
+            setSelectedId(null)
           }}
+          onClose={() => setSelectedId(null)}
         />
       )}
 
       {dragProject && (
-        <div className="drag-ghost" style={{ left: drag!.x, top: drag!.y }} aria-hidden="true">
+        <div className="drag-ghost" style={{ left: chipDrag!.x, top: chipDrag!.y }} aria-hidden="true">
           <span className="dot" style={{ background: dragProject.color }} />
           {dragProject.name}
         </div>
@@ -175,130 +344,54 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
   )
 }
 
-function TimelineBar({
-  layout,
-  overBlock,
-  targetBlock,
-  onBlockClick,
-  segmentLabel,
-}: {
-  layout: TimelineLayout
-  overBlock: number | null
-  targetBlock: number | null
-  onBlockClick: (index: number) => void
-  segmentLabel: (allocationId: string | null) => { name: string; color: string | null }
-}) {
-  const pos = (s: { left: number; width: number }) => ({ left: `${s.left}%`, width: `${s.width}%` })
-  return (
-    <div className="timeline">
-      <div className="timeline__caption">{layout.mode === 'clock' ? 'Stempelzeiten' : 'Arbeitszeit'}</div>
-      <div className="timeline__track timeline__track--blocks">
-        {layout.breaks.map((b) => (
-          <div
-            key={`pause-${b.start}`}
-            className="timeline__break"
-            style={pos(b)}
-            title={`Pause ${formatDuration(b.end - b.start)}`}
-          />
-        ))}
-        {layout.blocks.map((b) => (
-          <button
-            key={b.index}
-            type="button"
-            data-block-index={b.index}
-            data-testid={`timeline-block-${b.index}`}
-            className={[
-              'timeline__block',
-              overBlock === b.index && 'is-over',
-              targetBlock === b.index && 'is-target',
-              b.running && 'is-running',
-            ]
-              .filter(Boolean)
-              .join(' ')}
-            style={pos(b)}
-            aria-label={`${b.label} (${formatDuration(b.minutes)}) – Projekt zuordnen`}
-            onClick={() => onBlockClick(b.index)}
-          >
-            <span className="timeline__block-label">{b.label}</span>
-            {layout.mode === 'clock' && <span className="timeline__block-minutes num">{formatDuration(b.minutes)}</span>}
-          </button>
-        ))}
-      </div>
-      <div className="timeline__caption">Verteilung auf Projekte</div>
-      <div className="timeline__track timeline__track--segments">
-        {layout.segments.map((s, i) => {
-          const { name, color } = segmentLabel(s.allocationId)
-          return (
-            <div
-              key={i}
-              className={`timeline__segment${s.allocationId === null ? ' is-open' : ''}`}
-              style={{ ...pos(s), background: color ?? undefined }}
-              title={`${name} ${formatDuration(s.minutes)}`}
-            >
-              <span>
-                {name} {formatDuration(s.minutes)}
-              </span>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-function DraftPanel({
-  draft,
-  layout,
-  projects,
+function SegmentPanel({
+  allocation,
+  block,
+  projectName,
+  color,
   activityTypes,
-  onChange,
-  onCancel,
-  onAdd,
+  onActivity,
+  onShare,
+  onRemove,
+  onClose,
 }: {
-  draft: Draft
-  layout: TimelineLayout
-  projects: Project[]
+  allocation: Allocation
+  block: TimelineBlock
+  projectName: string
+  color: string | undefined
   activityTypes: ActivityType[]
-  onChange: (draft: Draft) => void
-  onCancel: () => void
-  onAdd: (minutes: Minutes) => void
+  onActivity: (activityTypeId: string) => void
+  onShare: (share: number) => void
+  onRemove: () => void
+  onClose: () => void
 }) {
-  const block = layout.blocks.find((b) => b.index === draft.blockIndex) ?? layout.blocks[0]
-  const minutes = blockShareMinutes(block.minutes, draft.share)
-  const project = projects.find((p) => p.id === draft.projectId)
-
   return (
-    <div className="timeline-draft" data-testid="timeline-draft">
-      <div className="timeline-draft__row">
-        <span className="dot" style={{ background: project?.color ?? 'transparent' }} />
-        <select
-          className="input"
-          aria-label="Projekt für die Zeitleiste"
-          value={draft.projectId}
-          onChange={(e) => onChange({ ...draft, projectId: e.target.value })}
-        >
-          {!project && <option value="">Projekt wählen …</option>}
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.name}
-              {p.code ? ` (${p.code})` : ''}
-            </option>
-          ))}
-        </select>
+    <div className="timeline-panel" data-testid="segment-panel">
+      <div className="timeline-panel__row">
+        <span className="dot" style={{ background: color ?? 'transparent' }} />
+        <strong>{projectName}</strong>
+        <span className="muted small">
+          {block.label} · <span className="num">{formatDuration(allocation.value)}</span>
+        </span>
+        <button type="button" className="icon-btn icon-btn--subtle timeline-panel__close" aria-label="Schließen" onClick={onClose}>
+          <Icon name="x" />
+        </button>
+      </div>
+      <div className="timeline-panel__row">
         {activityTypes.length <= 3 ? (
           <Segmented
             size="small"
             ariaLabel="Tätigkeitsart"
             options={activityTypes.map((a) => ({ value: a.id, label: a.name }))}
-            value={draft.activityTypeId}
-            onChange={(activityTypeId) => onChange({ ...draft, activityTypeId })}
+            value={allocation.activityTypeId}
+            onChange={onActivity}
           />
         ) : (
           <select
             className="input"
             aria-label="Tätigkeitsart"
-            value={draft.activityTypeId}
-            onChange={(e) => onChange({ ...draft, activityTypeId: e.target.value })}
+            value={allocation.activityTypeId}
+            onChange={(e) => onActivity(e.target.value)}
           >
             {activityTypes.map((a) => (
               <option key={a.id} value={a.id}>
@@ -307,60 +400,16 @@ function DraftPanel({
             ))}
           </select>
         )}
-      </div>
-
-      {layout.blocks.length > 1 && (
-        <div className="timeline-draft__row">
-          <span className="muted small">Block</span>
-          <Segmented
-            size="small"
-            ariaLabel="Block"
-            options={layout.blocks.map((b) => ({ value: String(b.index), label: b.label }))}
-            value={String(block.index)}
-            onChange={(v) => onChange({ ...draft, blockIndex: Number(v) })}
-          />
-        </div>
-      )}
-
-      <div className="timeline-draft__row">
-        <input
-          type="range"
-          className="slider"
-          min={0}
-          max={100}
-          step={5}
-          aria-label="Anteil am Block"
-          value={draft.share}
-          onChange={(e) => onChange({ ...draft, share: Number(e.target.value) })}
-        />
-        <span className="timeline-draft__value num" data-testid="draft-value">
-          {draft.share} % = {formatDuration(minutes)}
-        </span>
-        <span className="timeline-draft__presets">
+        <span className="muted small">Anteil am Block:</span>
+        <span className="timeline-panel__presets">
           {SHARE_PRESETS.map((s) => (
-            <button
-              key={s.share}
-              type="button"
-              className={`btn btn--small${draft.share === s.share ? ' is-active' : ''}`}
-              onClick={() => onChange({ ...draft, share: s.share })}
-            >
+            <button key={s.share} type="button" className="btn btn--small" onClick={() => onShare(s.share)}>
               {s.label}
             </button>
           ))}
         </span>
-      </div>
-
-      <div className="button-row">
-        <button
-          type="button"
-          className="btn btn--primary"
-          disabled={!project || minutes === 0}
-          onClick={() => onAdd(minutes)}
-        >
-          Hinzufügen ({formatDuration(minutes)})
-        </button>
-        <button type="button" className="btn btn--ghost" onClick={onCancel}>
-          Abbrechen
+        <button type="button" className="btn btn--small btn--ghost" onClick={onRemove}>
+          <Icon name="trash" /> Entfernen
         </button>
       </div>
     </div>
