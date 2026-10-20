@@ -179,3 +179,36 @@ describe('Datenbank-Update', () => {
     upgraded.close()
   })
 })
+
+describe('Lineares Blockmodell (Datenstand 5 / Dexie v6)', () => {
+  const v4Day = {
+    date: '2026-10-19',
+    allocations: [
+      { id: 'z', projectId: 'p', activityTypeId: 'a', mode: 'duration', value: 60, note: '', blockId: 'b1' },
+      { id: 'r', projectId: 'p', activityTypeId: 'a', mode: 'rest', value: 0, note: '', blockId: 'b1' },
+      { id: 'h', projectId: 'p', activityTypeId: 'a', mode: 'duration', value: 30, note: '' },
+    ],
+  }
+  const expected = ['timeline', 'blockRest', 'duration']
+
+  it('Sicherung von Stand 4: Zeitleiste und Rest im Block bekommen eigene Modi', () => {
+    const file = parseBackup(
+      JSON.stringify({ app: 'stundenbogen', schemaVersion: 4, data: { projects: [], activityTypes: [], days: [v4Day] } }),
+    )
+    expect(file.data.days[0].allocations.map((a) => a.mode)).toEqual(expected)
+  })
+
+  it('Datenbank v5 → v6 stellt die Tage um', async () => {
+    const { default: Dexie } = await import('dexie')
+    const { StundenbogenDB } = await import('./db')
+    const old = new Dexie('upgrade-v6')
+    old.version(5).stores({ projects: 'id, sortOrder', activityTypes: 'id, sortOrder', days: 'date', settings: 'id', meta: 'key' })
+    await old.table('days').put(v4Day)
+    old.close()
+    const upgraded = new StundenbogenDB('upgrade-v6')
+    const day = await upgraded.days.get('2026-10-19')
+    expect(day?.allocations.map((a) => a.mode)).toEqual(expected)
+    expect(day?.allocations[0].blockId).toBe('b1')
+    upgraded.close()
+  })
+})

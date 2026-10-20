@@ -1,3 +1,4 @@
+import { assignBlocks, type BlockSize } from './blockAssign'
 import { formatDuration, formatPercent, isPlainNumber, parseAmount } from './duration'
 import type { Allocation, AllocationMode, FillStrategy, Minutes } from './types'
 
@@ -14,6 +15,8 @@ export interface AllocationResult {
   total: Minutes | null
   /** Minuten je Zeile (Allocation-ID → Minuten); null = ohne Tageszeit nicht berechenbar. */
   minutes: Record<string, Minutes | null>
+  /** Block je Zeile (Allocation-ID → Block-ID); null = der Tag hat keine Blöcke. */
+  blockOf: Record<string, string | null>
   allocated: Minutes
   /** total − allocated; negativ = überbucht. 0, wenn keine Tageszeit bekannt ist. */
   open: Minutes
@@ -44,65 +47,71 @@ export function roundPreservingSum(values: number[]): number[] {
   return result
 }
 
-/** „Rest im Block“: Rest-Zeile, die an einen vorhandenen Block gebunden ist. */
-export function isBlockRest(allocation: Allocation, blockIds: ReadonlySet<string>): boolean {
-  return allocation.mode === 'rest' && !!allocation.blockId && blockIds.has(allocation.blockId)
+/** Feste Dauer (gesperrt „h:mm“ oder auf der Zeitleiste)? */
+export function isFixedMode(mode: AllocationMode): boolean {
+  return mode === 'duration' || mode === 'timeline'
 }
 
 /**
  * Verteilt die Tageszeit auf die Zeilen eines Tages.
  * 1. Feste Dauern zählen direkt, Prozent-Zeilen bekommen ihren Anteil an der Tageszeit.
- *    „Rest im Block“-Zeilen teilen sich, was in ihrem Block neben den festen Dauern frei ist.
- * 2. Rest-Zeilen teilen sich, was übrig bleibt. Gibt es keine und ist „proportional“
- *    aktiv, wird der Rest anteilig auf alle Zeilen aufgeschlagen.
- * 3. Rundung auf ganze Minuten, Summe bleibt exakt.
+ * 2. Jede Zeile gehört zu einem Block (assignBlocks). „Rest im Block“-Zeilen teilen
+ *    sich, was in ihrem Block neben allen festen Zeilen (h:mm, Zeitleiste, %) frei ist.
+ * 3. Rest-Zeilen teilen sich, was vom Tag übrig bleibt. Gibt es keine und ist
+ *    „proportional“ aktiv, wird der Rest anteilig auf alle Zeilen aufgeschlagen.
+ * 4. Rundung auf ganze Minuten, Summe bleibt exakt.
+ * `blocks` = gültige Blöcke in zeitlicher Reihenfolge (siehe dayTotal.blockDurations).
  */
 export function resolveAllocations(
   total: Minutes | null,
   allocations: Allocation[],
   fillStrategy: FillStrategy,
-  blocks: { id: string; minutes: Minutes }[] = [],
+  blocks: BlockSize[] = [],
 ): AllocationResult {
+  const fixedOf = (a: Allocation): Minutes | null => {
+    if (isFixedMode(a.mode)) return a.value
+    if (a.mode === 'percent') return total === null ? 0 : (total * a.value) / 100
+    return null
+  }
+  const blockOf = assignBlocks(allocations, blocks, fixedOf)
+
   if (allocations.length === 0) {
     const t = total ?? 0
-    return { total, minutes: {}, allocated: 0, open: t, status: t > 0 ? 'open' : 'empty' }
+    return { total, minutes: {}, blockOf, allocated: 0, open: t, status: t > 0 ? 'open' : 'empty' }
   }
 
   if (total === null) {
     const minutes: Record<string, Minutes | null> = {}
     let allocated = 0
     for (const a of allocations) {
-      if (a.mode === 'duration') {
+      if (isFixedMode(a.mode)) {
         minutes[a.id] = a.value
         allocated += a.value
       } else {
         minutes[a.id] = null
       }
     }
-    return { total, minutes, allocated, open: 0, status: 'no-total' }
+    return { total, minutes, blockOf, allocated, open: 0, status: 'no-total' }
   }
 
-  const exact = allocations.map((a) => {
-    if (a.mode === 'duration') return a.value
-    if (a.mode === 'percent') return (total * a.value) / 100
-    return 0
-  })
+  const exact = allocations.map((a) => fixedOf(a) ?? 0)
 
-  // Rest im Block: freier Platz des Blocks neben seinen festen Dauern, je Block auf Minuten gerundet.
-  const blockIds = new Set(blocks.map((b) => b.id))
+  // Rest im Block: freier Platz des Blocks neben allen festen Zeilen, je Block auf Minuten gerundet.
   for (const block of blocks) {
-    const rests = allocations.flatMap((a, i) => (a.blockId === block.id && isBlockRest(a, blockIds) ? [i] : []))
+    const inBlock = allocations.flatMap((a, i) => (blockOf[a.id] === block.id ? [i] : []))
+    const rests = inBlock.filter((i) => allocations[i].mode === 'blockRest')
     if (rests.length === 0) continue
-    const fixed = allocations
-      .filter((a) => a.blockId === block.id && a.mode === 'duration')
-      .reduce((s, a) => s + a.value, 0)
+    const fixed = inBlock.reduce((s, i) => s + (fixedOf(allocations[i]) ?? 0), 0)
     const free = Math.max(block.minutes - fixed, 0)
     roundPreservingSum(rests.map(() => free / rests.length)).forEach((m, k) => (exact[rests[k]] = m))
   }
 
   const fixedSum = exact.reduce((s, v) => s + v, 0)
   const remainder = total - fixedSum
-  const restIndices = allocations.flatMap((a, i) => (a.mode === 'rest' && !isBlockRest(a, blockIds) ? [i] : []))
+  // Ein Block-Rest ohne Block (Tag ohne Blöcke) verhält sich wie ein Tages-Rest.
+  const restIndices = allocations.flatMap((a, i) =>
+    a.mode === 'rest' || (a.mode === 'blockRest' && blockOf[a.id] === null) ? [i] : [],
+  )
 
   if (restIndices.length > 0) {
     const share = Math.max(remainder, 0) / restIndices.length
@@ -118,12 +127,13 @@ export function resolveAllocations(
   const open = total - allocated
   const status: AllocationStatus =
     total === 0 && allocated === 0 ? 'empty' : open === 0 ? 'ok' : open > 0 ? 'open' : 'over'
-  return { total, minutes, allocated, open, status }
+  return { total, minutes, blockOf, allocated, open, status }
 }
 
 /**
  * Wechselt den Modus einer Zeile und behält dabei – wenn möglich – die
- * tatsächlich berechnete Zeit bei (z.B. 4:09 von 8:18 → 50 %).
+ * tatsächlich berechnete Zeit bei (z.B. 4:09 von 8:18 → 50 %). Block und
+ * Position bleiben, wie sie sind.
  */
 export function changeAllocationMode(
   allocation: Allocation,
@@ -132,9 +142,10 @@ export function changeAllocationMode(
   total: Minutes | null,
 ): Allocation {
   if (mode === allocation.mode) return allocation
-  if (mode === 'rest') return { ...allocation, mode, value: 0 }
-  if (mode === 'duration') {
-    return { ...allocation, mode, value: resolvedMinutes ?? 0 }
+  if (mode === 'rest' || mode === 'blockRest') return { ...allocation, mode, value: 0 }
+  if (isFixedMode(mode)) {
+    const value = isFixedMode(allocation.mode) ? allocation.value : (resolvedMinutes ?? 0)
+    return { ...allocation, mode, value }
   }
   const percent =
     total && resolvedMinutes !== null ? Math.round((resolvedMinutes / total) * 1000) / 10 : 0
@@ -153,7 +164,8 @@ export function applyAmountInput(allocation: Allocation, text: string): Allocati
   if (allocation.mode === 'percent' && isPlainNumber(trimmed)) {
     return { ...allocation, value: Number(trimmed.replace(',', '.')) }
   }
-  if (trimmed === '') return allocation.mode === 'rest' ? allocation : { ...allocation, value: 0 }
+  const isRest = allocation.mode === 'rest' || allocation.mode === 'blockRest'
+  if (trimmed === '') return isRest ? allocation : { ...allocation, value: 0 }
   const parsed = parseAmount(trimmed)
   if (!parsed) return null
   switch (parsed.kind) {
@@ -161,14 +173,17 @@ export function applyAmountInput(allocation: Allocation, text: string): Allocati
       return { ...allocation, mode: 'rest', value: 0 }
     case 'percent':
       return { ...allocation, mode: 'percent', value: parsed.percent }
-    case 'duration':
-      return { ...allocation, mode: 'duration', value: parsed.minutes }
+    case 'duration': {
+      // Zeitleisten-/Blockrest-Zeilen bleiben auf der Zeitleiste, sonst feste Dauer (gesperrt)
+      const onTimeline = allocation.mode === 'timeline' || allocation.mode === 'blockRest'
+      return { ...allocation, mode: onTimeline ? 'timeline' : 'duration', value: parsed.minutes }
+    }
   }
 }
 
 /** Anzeigetext des Wert-Felds einer Zeile: '1:30', '50 %' oder '' bei Rest. */
 export function formatAllocationValue(allocation: Allocation): string {
-  if (allocation.mode === 'duration') return formatDuration(allocation.value)
+  if (isFixedMode(allocation.mode)) return formatDuration(allocation.value)
   if (allocation.mode === 'percent') return formatPercent(allocation.value)
   return ''
 }
@@ -181,13 +196,9 @@ export function modeForNewAllocation(allocations: Allocation[]): AllocationMode 
   return hasDayRest(allocations) ? 'duration' : 'rest'
 }
 
-/**
- * Gibt es eine Rest-Zeile für den ganzen Tag? „Rest im Block“ zählt nicht.
- * (Eine Rest-Zeile mit Bindung an einen inzwischen gelöschten Block zählt hier
- * vereinfacht auch nicht – sie wird beim nächsten Verschieben/Umstellen gelöst.)
- */
+/** Gibt es eine Rest-Zeile für den ganzen Tag? „Rest im Block“ zählt nicht. */
 export function hasDayRest(allocations: Allocation[]): boolean {
-  return allocations.some((a) => a.mode === 'rest' && !a.blockId)
+  return allocations.some((a) => a.mode === 'rest')
 }
 
 /**
@@ -203,12 +214,7 @@ export function applyDefaultFill(
     (a) => a.projectId === target.projectId && a.activityTypeId === target.activityTypeId,
   )
   if (existing) {
-    // Tages-Rest: eine evtl. Zeitleisten-Bindung fällt weg (sonst wäre es „Rest im Block“).
-    return allocations.map((a) => {
-      if (a !== existing) return a
-      const { blockId: _removed, ...rest } = a
-      return { ...rest, mode: 'rest', value: 0 }
-    })
+    return allocations.map((a) => (a === existing ? { ...a, mode: 'rest', value: 0 } : a))
   }
   return [
     ...allocations,

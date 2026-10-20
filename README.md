@@ -23,9 +23,10 @@ Persönliche Web-App, um jeden Tag schnell festzuhalten, **wie lange** gearbeite
   - Den rechten Rand eines Projekts ziehen (oder Pfeiltasten): Die folgenden Projekte rücken nach und behalten ihre Länge; länger geht nur, bis das letzte ans Blockende stößt.
   - Klick auf ein Projekt: Dauer direkt eintragen (wird auf den Platz im Block begrenzt), Büro/Meeting, Entfernen.
   - **Ganze Segmente ziehen**: innerhalb eines Blocks umsortieren oder in einen anderen Block (Einfügemarke zeigt die Stelle; zu wenig Platz → Dauer wird begrenzt).
-  - **Rest im Block** (im Panel oder Modus „Block-Rest“): bekommt den freien Platz seines Blocks und wächst/schrumpft mit, wenn Nachbarn oder die Stempelzeiten sich ändern.
-  - In der Liste hat jede Zeile den Modus h:mm, %, Rest, Block-Rest oder **Zeitleiste**. Nur Zeitleisten-Zeilen lassen sich oben ziehen; h:mm/%/Rest-Zeilen erscheinen oben blass und gesperrt (Klick → „Auf Zeitleiste übernehmen“).
-  - Die Liste ist nach Blöcken gruppiert (z.B. „07:00–11:33“, „12:03–16:30“, dann „Ohne Zeitleiste“) und im Block zeitlich sortiert. Mit dem Griff ≡ (ziehen oder ↑/↓) verschiebt man Zeilen – auch in einen anderen Block oder aus der Zeitleiste heraus.
+  - **Jede Zeile steht in einem Block**, in der Reihenfolge der Liste – egal ob h:mm, %, Rest, Block-Rest oder Zeitleiste. Zeilen ohne festen Block (neu hinzugefügt) kommen in den Block, in dem gerade Platz ist.
+  - **Rest im Block** (im Panel oder Modus „Block-Rest“): bekommt, was in seinem Block neben allen anderen Zeilen (auch h:mm und %) frei ist, und wächst/schrumpft mit.
+  - Der Modus bestimmt nur, wie die Dauer entsteht und ob die Zeile oben ziehbar ist: **Zeitleiste** und Block-Rest lassen sich oben verschieben, h:mm/%/Rest erscheinen oben blass und gesperrt (Klick → „Auf Zeitleiste übernehmen“). Umstellen verschiebt nichts.
+  - Die Liste ist nach Blöcken gruppiert (z.B. „07:00–11:33“, „12:03–16:30“). Mit dem Griff ≡ (ziehen oder ↑/↓) verschiebt man jede Zeile – im Block oder in einen anderen Block.
   - Gleiches Projekt + Tätigkeit vor und nach der Pause: je Block eine Zeile mit „Σ“ (Summe); im Monat und im Export ist es eine Zeile.
   - Die offene Zeit ist gestreift.
 - **Soll & Überstunden:** Soll je Wochentag (Standard 8:18 Mo–Fr = 41:30). Tagesansicht zeigt Soll und Tagesdifferenz sowie die **Woche** (gearbeitet, noch bis Soll, noch bis zur Höchstarbeitszeit, Standard 45 h), die Monatstabelle eine Soll- und Differenz-Zeile. Einen Gesamtsaldo gibt es bewusst nicht – der kommt aus der Firmensoftware. Urlaub/Krank/Überstundenabbau sind normale Projekte.

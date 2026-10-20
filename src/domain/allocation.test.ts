@@ -108,7 +108,7 @@ describe('Rest im Block', () => {
   it('bekommt den freien Platz seines Blocks, der Tages-Rest den Rest des Tages', () => {
     const r = resolveAllocations(
       534,
-      [inBlock(row('a', 'duration', 120), 'am'), inBlock(row('br', 'rest'), 'am'), row('p', 'percent', 10), row('tag', 'rest')],
+      [inBlock(row('a', 'duration', 120), 'am'), inBlock(row('br', 'blockRest'), 'am'), row('p', 'percent', 10), row('tag', 'rest')],
       'none',
       blocks,
     )
@@ -121,10 +121,10 @@ describe('Rest im Block', () => {
     const r = resolveAllocations(
       534,
       [
-        inBlock(row('x', 'rest'), 'am'),
-        inBlock(row('y', 'rest'), 'am'),
+        inBlock(row('x', 'blockRest'), 'am'),
+        inBlock(row('y', 'blockRest'), 'am'),
         inBlock(row('a', 'duration', 300), 'pm'),
-        inBlock(row('z', 'rest'), 'pm'),
+        inBlock(row('z', 'blockRest'), 'pm'),
       ],
       'none',
       blocks,
@@ -132,9 +132,17 @@ describe('Rest im Block', () => {
     expect(r.minutes).toEqual({ x: 134, y: 133, a: 300, z: 0 })
   })
 
-  it('unbekannter Block (z.B. gelöscht) → normaler Tages-Rest', () => {
-    const r = resolveAllocations(534, [inBlock(row('a', 'duration', 34), 'am'), inBlock(row('r', 'rest'), 'weg')], 'none', blocks)
-    expect(r.minutes.r).toBe(500)
+  it('zieht alle festen Zeilen seines Blocks ab – auch h:mm und % ohne Blockangabe', () => {
+    // a und p fließen in den Vormittag (dort ist Platz), br steht dahinter
+    const r = resolveAllocations(534, [row('a', 'duration', 90), row('p', 'percent', 10), inBlock(row('br', 'blockRest'), 'am')], 'none', blocks)
+    expect(r.blockOf).toEqual({ a: 'am', p: 'am', br: 'am' })
+    expect(r.minutes.br).toBe(267 - 90 - 53)
+  })
+
+  it('unbekannter Block (z.B. gelöscht) → fließt in den Block mit Platz; ohne Blöcke wie Tages-Rest', () => {
+    const r = resolveAllocations(534, [inBlock(row('a', 'duration', 34), 'am'), inBlock(row('r', 'blockRest'), 'weg')], 'none', blocks)
+    expect(r.minutes.r).toBe(233)
+    expect(resolveAllocations(534, [row('a', 'duration', 34), row('r', 'blockRest')], 'none').minutes.r).toBe(500)
   })
 })
 
@@ -144,6 +152,14 @@ describe('changeAllocationMode', () => {
     expect(changeAllocationMode(a, 'duration', 249, 498)).toMatchObject({ mode: 'duration', value: 249 })
     expect(changeAllocationMode(a, 'percent', 249, 498)).toMatchObject({ mode: 'percent', value: 50 })
     expect(changeAllocationMode(row('b', 'duration', 60), 'rest', 60, 498)).toMatchObject({ mode: 'rest', value: 0 })
+  })
+
+  it('h:mm ↔ Zeitleiste behält Wert und Block; Block-Rest startet bei 0', () => {
+    const fixed = { ...row('a', 'duration', 90), blockId: 'am' }
+    expect(changeAllocationMode(fixed, 'timeline', 90, 498)).toEqual({ ...fixed, mode: 'timeline' })
+    expect(changeAllocationMode({ ...fixed, mode: 'timeline' }, 'duration', 90, 498)).toEqual(fixed)
+    expect(changeAllocationMode(row('p', 'percent', 10), 'timeline', 50, 498)).toMatchObject({ mode: 'timeline', value: 50 })
+    expect(changeAllocationMode(fixed, 'blockRest', 90, 498)).toEqual({ ...fixed, mode: 'blockRest', value: 0 })
   })
 
   it('ohne Tageszeit wird Prozent mit 0 begonnen', () => {
@@ -162,6 +178,10 @@ describe('applyAmountInput', () => {
     expect(applyAmountInput(row('a', 'rest'), '50%')).toMatchObject({ mode: 'percent', value: 50 })
     expect(applyAmountInput(row('a', 'percent', 50), '1:30')).toMatchObject({ mode: 'duration', value: 90 })
     expect(applyAmountInput(row('a', 'duration', 60), 'rest')).toMatchObject({ mode: 'rest', value: 0 })
+    // Zeitleiste und Block-Rest bleiben auf der Zeitleiste
+    expect(applyAmountInput(row('a', 'timeline', 60), '.5')).toMatchObject({ mode: 'timeline', value: 30 })
+    expect(applyAmountInput(row('a', 'blockRest'), '1:00')).toMatchObject({ mode: 'timeline', value: 60 })
+    expect(applyAmountInput(row('a', 'blockRest'), '')).toMatchObject({ mode: 'blockRest' })
   })
 
   it('leeres Feld: Rest bleibt Rest, sonst 0', () => {
@@ -194,9 +214,9 @@ describe('Auffüllen-Helfer', () => {
     const added = applyDefaultFill([row('a', 'duration', 60, 'p2')], target, 'x')
     expect(added).toHaveLength(2)
     expect(added[1]).toMatchObject({ id: 'x', projectId: 'p1', mode: 'rest' })
-    // Zeitleisten-Zeile wird Tages-Rest, nicht „Rest im Block“
-    const onTimeline = applyDefaultFill([{ ...row('b', 'duration', 60, 'p1'), blockId: 'am' }], target, 'x')
-    expect('blockId' in onTimeline[0]).toBe(false)
-    expect(modeForNewAllocation([{ ...row('r', 'rest'), blockId: 'am' }])).toBe('rest')
+    // Die Zeile bleibt an ihrem Platz (Block), wird aber Tages-Rest
+    const onTimeline = applyDefaultFill([{ ...row('b', 'timeline', 60, 'p1'), blockId: 'am' }], target, 'x')
+    expect(onTimeline[0]).toMatchObject({ mode: 'rest', blockId: 'am' })
+    expect(modeForNewAllocation([row('r', 'blockRest')])).toBe('rest')
   })
 })

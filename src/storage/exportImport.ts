@@ -1,5 +1,6 @@
 import { isISODate } from '../domain/date'
 import { emptyDay } from '../domain/day'
+import { upgradeAllocationV5 } from '../domain/legacy'
 import type { ProjectListFile } from '../domain/projectTransfer'
 import type { ActivityType, Day, Project, Settings } from '../domain/types'
 import { db } from './db'
@@ -10,7 +11,7 @@ import { defaultSettings } from './seed'
  * Version des Sicherungsformats. Bei jeder Änderung am Datenmodell erhöhen und
  * in MIGRATIONS eine Funktion „von Version n auf n+1“ ergänzen.
  */
-export const SCHEMA_VERSION = 4
+export const SCHEMA_VERSION = 5
 
 const MIGRATIONS: Record<number, (data: Record<string, unknown>) => Record<string, unknown>> = {
   // 1 → 2: Allocation.blockId ist neu und optional – alte Zeilen bleiben „frei verteilt“.
@@ -19,6 +20,15 @@ const MIGRATIONS: Record<number, (data: Record<string, unknown>) => Record<strin
   2: (data) => data,
   // 3 → 4: Settings.weeklyMaxMinutes – ergänzt parseBackup über die Standardwerte.
   3: (data) => data,
+  // 4 → 5: Modi „timeline“ und „blockRest“ (vorher duration/rest mit blockId).
+  4: (data) => ({
+    ...data,
+    days: Array.isArray(data.days)
+      ? data.days.map((d: { allocations?: unknown }) =>
+          d && Array.isArray(d.allocations) ? { ...d, allocations: d.allocations.map(upgradeAllocationV5) } : d,
+        )
+      : data.days,
+  }),
 }
 
 export interface BackupData {

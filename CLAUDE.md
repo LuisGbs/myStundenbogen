@@ -41,9 +41,9 @@ In der Cloud-Umgebung nutzt Playwright das vorinstallierte Chromium unter `/opt/
 - Feiertage: je nach Arbeitsort (`domain/holidays.ts`: CH-BL, DE-BW, DE-BY, DE-RP), Soll und Wochenübersicht in `domain/target.ts` (bewusst kein Gesamtsaldo).
 - Urlaub, Krankheit, Überstundenabbau sind in der Firmensoftware normale Projekte – keine Sonderlogik dafür bauen.
 - Buchungsziel: Projekt + Tätigkeitsart (Büro/Meeting).
-- Zeitleiste (`domain/timeline.ts`): Reihenfolge im `allocations`-Array = Reihenfolge im Block. Verschieben (Zeitleiste und Griff in der Liste) nur über `moveAllocation`.
+- Lineares Blockmodell: Jede Zeile gehört zu einem Block (`domain/blockAssign.ts`: gültige `blockId`, sonst Fluss in den Block mit Platz); Reihenfolge im `allocations`-Array = Reihenfolge im Block. Modi: `duration` (h:mm, oben gesperrt), `timeline` (oben ziehbar), `percent`, `rest` (Tag), `blockRest` (Block). Moduswechsel verschieben nichts. Verschieben/Einfügen nur über `moveAllocation`/`insertSegment` (`domain/timeline.ts`).
 - Verteilung (`domain/allocation.ts`), in dieser Reihenfolge:
-  1. feste Dauern und Prozentwerte; „Rest im Block“ (`mode: 'rest'` + `blockId`) bekommt den freien Platz seines Blocks
+  1. feste Dauern und Prozentwerte; `blockRest` bekommt, was in seinem Block neben allen festen Zeilen frei ist
   2. Rest-Zeilen teilen sich den Rest; ohne Rest-Zeile wird optional proportional aufgefüllt
   3. Largest-Remainder-Rundung, sodass die Summe minutengenau stimmt
 - Fahrplan: siehe README.

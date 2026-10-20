@@ -1,5 +1,6 @@
 import Dexie, { type Table } from 'dexie'
 import type { ActivityType, Day, Project, Settings } from '../domain/types'
+import { upgradeAllocationV5 } from '../domain/legacy'
 import { TEMPLATE_8H18, TEMPLATE_9H } from '../domain/plan'
 import { DEFAULT_WEEKLY_MAX } from '../domain/target'
 
@@ -72,6 +73,17 @@ export class StundenbogenDB extends Dexie {
               s.dayTemplate = TEMPLATE_9H.map((b) => ({ ...b }))
             }
             if (typeof s.weeklyMaxMinutes !== 'number') s.weeklyMaxMinutes = DEFAULT_WEEKLY_MAX
+          })
+      })
+    // v6: eigene Modi „Zeitleiste“ und „Rest im Block“; jede Zeile darf einen Block haben (lineares Modell).
+    this.version(6)
+      .stores({})
+      .upgrade(async (tx) => {
+        await tx
+          .table('days')
+          .toCollection()
+          .modify((day: { allocations?: { mode: string; blockId?: string }[] }) => {
+            if (Array.isArray(day.allocations)) day.allocations = day.allocations.map(upgradeAllocationV5)
           })
       })
   }

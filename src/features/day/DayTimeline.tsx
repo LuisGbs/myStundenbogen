@@ -1,13 +1,11 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
-import type { AllocationResult } from '../../domain/allocation'
+import { changeAllocationMode, type AllocationResult } from '../../domain/allocation'
 import { summarizeDay } from '../../domain/day'
 import { formatDuration, parseDuration } from '../../domain/duration'
 import { newId } from '../../domain/id'
 import {
-  attachToBlock,
   insertionBefore,
   insertSegment,
-  isOnTimeline,
   layoutTimeline,
   maxSegmentMinutes,
   MIN_SEGMENT_MINUTES,
@@ -15,8 +13,8 @@ import {
   resizeSegment,
   snapMinutes,
   SNAP_MINUTES,
-  toBlockRest,
   type MoveTarget,
+  type PlacementContext,
   type TimelineBlock,
   type TimelineSegment,
 } from '../../domain/timeline'
@@ -68,7 +66,8 @@ interface DropTarget {
 /** Ziehen am rechten Rand eines Segments. */
 interface Resize {
   allocationId: string
-  blockMinutes: Minutes
+  /** Obergrenze (Block minus die übrigen festen Zeilen), beim Start des Ziehens festgehalten. */
+  maxMinutes: Minutes
   startX: number
   startValue: Minutes
   pxPerMinute: number
@@ -90,7 +89,10 @@ function blockAt(x: number, y: number, blocks: TimelineBlock[]): { block: Timeli
 function dropTargetAt(x: number, y: number, blocks: TimelineBlock[], selfId: string | null): DropTarget | null {
   const hit = blockAt(x, y, blocks)
   if (!hit) return null
-  const placed = hit.block.segments.filter((s) => (s.kind === 'bound' || s.kind === 'blockRest') && s.allocationId !== selfId)
+  // Alle Zeilen des Blocks zählen (auch gesperrte), nicht aber Überlauf-Stücke und offene Zeit.
+  const placed = hit.block.segments.filter(
+    (s) => (s.kind === 'bound' || s.kind === 'blockRest' || s.kind === 'floating') && s.allocationId !== selfId,
+  )
   const beforeId = insertionBefore(placed, hit.minute)
   const before = placed.find((s) => s.allocationId === beforeId)
   const markerLeft = before ? before.left : Math.max(0, ...placed.map((s) => Math.min(100, s.left + s.width)))
@@ -110,13 +112,11 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
   const [resize, setResize] = useState<Resize | null>(null)
   const resizeRef = useRef<Resize | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  /** Block, in dem eine gesperrte Zeile angeklickt wurde (gebundene Zeilen kennen ihren Block selbst). */
-  const [lockedBlockId, setLockedBlockId] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
   // Während des Ziehens am Rand: Vorschau mit der neuen Dauer (gespeichert wird beim Loslassen).
   const shownDay = resize
-    ? { ...day, allocations: resizeSegment(day.allocations, resize.allocationId, resize.value, resize.blockMinutes) }
+    ? { ...day, allocations: resizeSegment(day.allocations, resize.allocationId, resize.value, resize.maxMinutes) }
     : day
   if (resize?.committed) {
     const saved = day.allocations.find((a) => a.id === resize.allocationId)?.value
@@ -128,6 +128,7 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
   if (!layout) return null
 
   const defaultTypeId = (activityTypes.find((a) => a.active) ?? activityTypes[0])?.id ?? ''
+  const ctx: PlacementContext = { blockOf: shownResult.blockOf, blocks: layout.blocks }
   const allocationById = new Map(shownDay.allocations.map((a) => [a.id, a]))
   const projectById = new Map(projects.map((p) => [p.id, p]))
   const activityById = new Map(activityTypes.map((a) => [a.id, a]))
@@ -140,16 +141,16 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
 
   // ---------- Projekt in einen Block einfügen ----------
 
-  const addToBlock = (projectId: string, block: TimelineBlock, minute: Minutes) => {
+  const addToBlock = (projectId: string, block: TimelineBlock, beforeId: string | null) => {
     const base = { id: newId(), projectId, activityTypeId: defaultTypeId, note: '' }
-    if (!insertSegment(day.allocations, block, minute, base)) {
+    if (!insertSegment(day.allocations, block.id, beforeId, base, ctx)) {
       setMessage(fullMessage(block))
       return
     }
     setMessage(null)
     setSelectedId(base.id)
     onChange((d) => {
-      const next = insertSegment(d.allocations, block, minute, base)
+      const next = insertSegment(d.allocations, block.id, beforeId, base, ctx)
       return next ? { ...d, allocations: next } : d
     })
   }
@@ -178,13 +179,13 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
       if (!d) return
       updateChipDrag(null)
       if (isDragged(d, e.clientX, e.clientY)) {
-        const over = blockAt(e.clientX, e.clientY, layout.blocks)
-        if (over) addToBlock(d.projectId, over.block, over.minute)
+        const over = dropTargetAt(e.clientX, e.clientY, layout.blocks, null)
+        if (over) addToBlock(d.projectId, over.block, over.beforeId)
         return
       }
       // Einfacher Klick: hinten in den ersten Block mit freiem Platz.
-      const target = layout.blocks.find((b) => b.minutes - b.boundMinutes >= MIN_SEGMENT_MINUTES) ?? layout.blocks[0]
-      addToBlock(d.projectId, target, target.end)
+      const target = layout.blocks.find((b) => b.minutes - b.fixedMinutes >= MIN_SEGMENT_MINUTES) ?? layout.blocks[0]
+      addToBlock(d.projectId, target, null)
     },
     onPointerCancel: () => updateChipDrag(null),
   })
@@ -192,16 +193,12 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
   // ---------- Ganzes Segment verschieben ----------
 
   const moveTo = (allocationId: string, target: MoveTarget, block: TimelineBlock) => {
-    const resolved = shownResult.minutes[allocationId] ?? null
-    if (!moveAllocation(day.allocations, allocationId, target, layout.blocks, resolved)) {
+    if (!moveAllocation(day.allocations, allocationId, target, ctx)) {
       setMessage(fullMessage(block))
       return
     }
     setMessage(null)
-    onChange((d) => ({
-      ...d,
-      allocations: moveAllocation(d.allocations, allocationId, target, layout.blocks, resolved) ?? d.allocations,
-    }))
+    onChange((d) => ({ ...d, allocations: moveAllocation(d.allocations, allocationId, target, ctx) ?? d.allocations }))
   }
 
   const updateSegmentDrag = (next: SegmentDrag | null) => {
@@ -236,9 +233,9 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
 
   // ---------- Rand eines Segments ziehen ----------
 
-  const commitResize = (allocationId: string, value: Minutes, blockMinutes: Minutes) => {
+  const commitResize = (allocationId: string, value: Minutes, maxMinutes: Minutes) => {
     setMessage(null)
-    onChange((d) => ({ ...d, allocations: resizeSegment(d.allocations, allocationId, value, blockMinutes) }))
+    onChange((d) => ({ ...d, allocations: resizeSegment(d.allocations, allocationId, value, maxMinutes) }))
   }
 
   const updateResize = (next: Resize | null) => {
@@ -248,12 +245,13 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
 
   const handleProps = (segment: TimelineSegment, block: TimelineBlock) => {
     const allocation = allocationById.get(segment.allocationId!)!
+    const max = maxSegmentMinutes(block, allocation)
     return {
       role: 'slider',
       tabIndex: 0,
       'aria-label': `Dauer ${segmentName(allocation)}`,
       'aria-valuemin': MIN_SEGMENT_MINUTES,
-      'aria-valuemax': maxSegmentMinutes(shownDay.allocations, allocation.id, block.minutes),
+      'aria-valuemax': max,
       'aria-valuenow': allocation.value,
       'aria-valuetext': formatDuration(allocation.value),
       onPointerDown: (e: PointerEvent<HTMLDivElement>) => {
@@ -263,7 +261,7 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
         const frame = e.currentTarget.closest<HTMLElement>('[data-block-id]')!
         updateResize({
           allocationId: allocation.id,
-          blockMinutes: block.minutes,
+          maxMinutes: max,
           startX: e.clientX,
           startValue: allocation.value,
           pxPerMinute: frame.getBoundingClientRect().width / block.minutes,
@@ -285,7 +283,7 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
           return
         }
         updateResize({ ...r, committed: true })
-        commitResize(r.allocationId, r.value, r.blockMinutes)
+        commitResize(r.allocationId, r.value, r.maxMinutes)
       },
       onPointerCancel: () => updateResize(null),
       onClick: (e: { stopPropagation: () => void }) => e.stopPropagation(),
@@ -294,18 +292,24 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
         const delta = ({ ArrowRight: step, ArrowUp: step, ArrowLeft: -step, ArrowDown: -step } as Record<string, number>)[e.key]
         if (delta === undefined) return
         e.preventDefault()
-        commitResize(allocation.id, allocation.value + delta, block.minutes)
+        commitResize(allocation.id, allocation.value + delta, max)
       },
     }
   }
 
-  const blockIds = new Set(layout.blocks.map((b) => b.id))
   const selected = selectedId ? allocationById.get(selectedId) : undefined
-  const selectedLocked = !!selected && !isOnTimeline(selected, blockIds)
-  const selectedBlock = selected && layout.blocks.find((b) => b.id === (selectedLocked ? lockedBlockId : selected.blockId))
-  const select = (allocationId: string, block: TimelineBlock, kind: TimelineSegment['kind']) => {
-    setSelectedId(allocationId)
-    setLockedBlockId(kind === 'floating' ? block.id : null)
+  const selectedLocked = !!selected && selected.mode !== 'timeline' && selected.mode !== 'blockRest'
+  const selectedBlock = selected && layout.blocks.find((b) => b.id === shownResult.blockOf[selected.id])
+  // Modus ändern: Zeile bleibt in ihrem Block an ihrem Platz.
+  const setMode = (allocation: Allocation, mode: Allocation['mode']) => {
+    const minutes = shownResult.minutes[allocation.id] ?? null
+    const blockId = shownResult.blockOf[allocation.id]
+    onChange((d) => ({
+      ...d,
+      allocations: d.allocations.map((a) =>
+        a.id === allocation.id ? { ...changeAllocationMode(a, mode, minutes, shownResult.total), ...(blockId ? { blockId } : {}) } : a,
+      ),
+    }))
   }
   const dragProject = chipDrag?.active ? projectById.get(chipDrag.projectId) : undefined
   const draggedSegment = segmentDrag?.active ? allocationById.get(segmentDrag.allocationId) : undefined
@@ -372,7 +376,7 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
                 (chipDrag?.overBlock === block.id || (draggedSegment && drop?.block.id === block.id)) && 'is-over',
                 block.running && 'is-running',
                 block.planned && 'is-planned',
-                block.boundMinutes > block.minutes && 'is-overfull',
+                block.fixedMinutes > block.minutes && 'is-overfull',
               ]
                 .filter(Boolean)
                 .join(' ')}
@@ -397,14 +401,14 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
                       .join(' ')}
                     style={{ left: `${s.left}%`, width: `${s.width}%`, background: s.kind === 'open' ? undefined : color }}
                     title={`${name} ${formatDuration(s.minutes)}${SEGMENT_HINT[s.kind]}`}
-                    data-testid={movable ? `segment-${name}` : s.kind === 'floating' ? `locked-${name}` : undefined}
+                    data-testid={movable ? `segment-${name}` : s.kind === 'open' ? undefined : `${s.kind === 'spill' ? 'spill' : 'locked'}-${name}`}
                     {...(movable ? segmentDragHandlers(s.allocationId!) : {})}
                     onClick={() => {
                       if (suppressClickRef.current) {
                         suppressClickRef.current = false
                         return
                       }
-                      if (s.allocationId) select(s.allocationId, block, s.kind)
+                      if (s.allocationId) setSelectedId(s.allocationId)
                     }}
                   >
                     <span>
@@ -429,9 +433,9 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
           allocation={selected}
           block={selectedBlock}
           locked={selectedLocked}
-          blockRest={!selectedLocked && selected.mode === 'rest'}
-          minutes={selectedLocked || selected.mode === 'rest' ? (shownResult.minutes[selected.id] ?? 0) : selected.value}
-          maxMinutes={maxSegmentMinutes(shownDay.allocations, selected.id, selectedBlock.minutes)}
+          blockRest={selected.mode === 'blockRest'}
+          minutes={selected.mode === 'timeline' ? selected.value : (shownResult.minutes[selected.id] ?? 0)}
+          maxMinutes={maxSegmentMinutes(selectedBlock, selected)}
           projectName={projectById.get(selected.projectId)?.name ?? '?'}
           color={projectById.get(selected.projectId)?.color}
           activityTypes={activityTypes.filter((a) => a.active || a.id === selected.activityTypeId)}
@@ -442,31 +446,13 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
             }))
           }
           onDuration={(minutes) => {
-            const clamped = resizeSegment(day.allocations, selected.id, minutes, selectedBlock.minutes).find(
-              (a) => a.id === selected.id,
-            )!.value
-            commitResize(selected.id, minutes, selectedBlock.minutes)
+            const max = maxSegmentMinutes(selectedBlock, selected)
+            const clamped = resizeSegment(day.allocations, selected.id, minutes, max).find((a) => a.id === selected.id)!.value
+            commitResize(selected.id, minutes, max)
             return clamped
           }}
-          onAttach={() => {
-            const wanted = shownResult.minutes[selected.id] ?? 0
-            if (!attachToBlock(day.allocations, selected.id, selectedBlock, wanted)) {
-              setMessage(`Der Block ${selectedBlock.label} ist schon voll belegt – zuerst ein Segment kürzen.`)
-              return
-            }
-            setMessage(null)
-            onChange((d) => ({ ...d, allocations: attachToBlock(d.allocations, selected.id, selectedBlock, wanted) ?? d.allocations }))
-          }}
-          onToggleBlockRest={() => {
-            const current = Math.max(shownResult.minutes[selected.id] ?? 0, MIN_SEGMENT_MINUTES)
-            onChange((d) => ({
-              ...d,
-              allocations: d.allocations.map((a) => {
-                if (a.id !== selected.id) return a
-                return a.mode === 'rest' ? { ...a, mode: 'duration', value: current } : toBlockRest(a, selectedBlock.id)
-              }),
-            }))
-          }}
+          onAttach={() => setMode(selected, 'timeline')}
+          onToggleBlockRest={() => setMode(selected, selected.mode === 'blockRest' ? 'timeline' : 'blockRest')}
           onNote={(note) =>
             onChange((d) => ({ ...d, allocations: d.allocations.map((a) => (a.id === selected.id ? { ...a, note } : a)) }))
           }
@@ -498,13 +484,16 @@ const SEGMENT_HINT: Record<TimelineSegment['kind'], string> = {
   bound: ' – ziehen zum Verschieben',
   blockRest: ' – Rest im Block, wächst und schrumpft mit',
   floating: ' – in der Liste fest eingestellt (gesperrt)',
+  spill: ' – Teil des Tages-Rests (gesperrt)',
   open: '',
 }
 
 const MODE_TEXT: Record<Allocation['mode'], string> = {
   duration: 'feste Dauer (h:mm)',
+  timeline: 'Zeitleiste',
   percent: 'Prozent des Tages',
   rest: 'Rest des Tages',
+  blockRest: 'Rest im Block',
 }
 
 function SegmentPanel({

@@ -43,11 +43,13 @@ export interface TemplateBlock {
 
 /**
  * Wie eine Zeile ihre Zeit bekommt:
- * - duration: feste Dauer in Minuten (value = Minuten)
- * - percent:  Anteil an der Tageszeit (value = Prozent, z.B. 50)
- * - rest:     bekommt, was übrig bleibt (value wird ignoriert)
+ * - duration:  feste Dauer in Minuten (value = Minuten), in der Zeitleiste gesperrt („h:mm“)
+ * - timeline:  feste Dauer in Minuten, in der Zeitleiste zieh- und veränderbar
+ * - percent:   Anteil an der Tageszeit (value = Prozent, z.B. 50)
+ * - rest:      bekommt, was vom Tag übrig bleibt (value wird ignoriert)
+ * - blockRest: bekommt, was in seinem Block übrig bleibt (value wird ignoriert)
  */
-export type AllocationMode = 'duration' | 'percent' | 'rest'
+export type AllocationMode = 'duration' | 'timeline' | 'percent' | 'rest' | 'blockRest'
 
 export interface Allocation {
   id: string
@@ -57,9 +59,10 @@ export interface Allocation {
   value: number
   note: string
   /**
-   * Stempel-Block, in dem die Zeile auf der Zeitleiste liegt (TimeBlock.id bzw.
-   * 'gesamt' bei Gesamtzeit). Bei mode 'duration' = Segment mit fester Dauer,
-   * bei mode 'rest' = „Rest im Block“; fehlt (oder Block unbekannt) = frei verteilt.
+   * Stempel-Block, in dem die Zeile liegt (TimeBlock.id bzw. 'gesamt' bei
+   * Gesamtzeit) – für jeden Modus. Im Block stehen die Zeilen in der Reihenfolge
+   * des Arrays. Fehlt sie (oder ist der Block unbekannt), fließt die Zeile in den
+   * Block, in dem gerade Platz ist (siehe domain/blockAssign.ts).
    */
   blockId?: string
 }

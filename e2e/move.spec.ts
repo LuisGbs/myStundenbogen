@@ -103,26 +103,89 @@ test('Segmente verschieben, Liste nach Blöcken, Rest im Block, Σ bei gleichem 
   await expect(panel.getByTestId('panel-blockrest')).toHaveText('2:55')
   await expect(panel.getByLabel('Dauer im Block')).toHaveCount(0)
 
-  // 5) Per Griff und Pfeiltaste nach „Ohne Zeitleiste“ → wird Tages-Rest
+  // 5) Per Griff und Pfeiltaste: Reinigung ans Ende des Vormittags → Block-Rest am Nachmittag wächst
   await page.waitForTimeout(1100) // eigener Schritt im Rückgängig-Verlauf
-  await revitPm.getByRole('button', { name: 'Zeile verschieben' }).focus()
-  await page.keyboard.press('ArrowDown')
-  const free = page.getByTestId('alloc-group-frei')
-  await expect(free.getByTestId('alloc-row')).toHaveCount(1)
-  await expect(free.getByRole('radio', { name: 'Rest', exact: true })).toHaveAttribute('aria-checked', 'true')
-  await expect(free.getByTestId('alloc-result')).toHaveText('5:55') // 8:00 − 1:00 − 1:05
+  await afternoonRows.nth(0).getByRole('button', { name: 'Zeile verschieben' }).focus()
+  await page.keyboard.press('ArrowUp')
+  await expect.poll(() => selectedProjects(groups.nth(0).getByTestId('alloc-row'))).toEqual(['Revit', 'Reinigung'])
+  await expect(afternoonRows).toHaveCount(1)
+  await expect(afternoonRows.nth(0).getByTestId('alloc-result')).toHaveText('4:00')
 
   // 6) Strg+Z macht das Verschieben rückgängig
   await page.keyboard.press('Control+z')
-  await expect(free).toHaveCount(0)
-  await expect(groups.nth(1).getByTestId('alloc-row').nth(1).getByRole('radio', { name: 'Block-Rest' })).toHaveAttribute(
-    'aria-checked',
-    'true',
-  )
+  await expect.poll(() => selectedProjects(afternoonRows)).toEqual(['Reinigung', 'Revit'])
+  await expect(afternoonRows.nth(1).getByRole('radio', { name: 'Block-Rest' })).toHaveAttribute('aria-checked', 'true')
+  await expect(afternoonRows.nth(1).getByTestId('alloc-result')).toHaveText('2:55')
 
   // 7) „.5“ im Wert-Feld = 0:30
   const revitAm = groups.nth(0).getByTestId('alloc-row').nth(0)
   await revitAm.getByLabel('Dauer oder Anteil').fill('.5')
   await revitAm.getByLabel('Dauer oder Anteil').press('Enter')
   await expect(revitAm.getByTestId('alloc-result')).toHaveText('0:30')
+})
+
+test('Linear: h:mm-Zeilen stehen im Block, Umstellen auf Zeitleiste verschiebt nichts, Block-Rest zieht alles ab', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Neu beginnen' }).click()
+  await page.goto('/#/projekte')
+  for (const name of ['Reinigung', 'Epis', 'Revit', 'Weiterbildung']) {
+    await page.getByLabel('Projektname', { exact: true }).first().fill(name)
+    await page.getByRole('button', { name: 'Anlegen' }).click()
+    await expect(page.locator('.item-row input[aria-label="Projektname"]').last()).toHaveValue(name)
+  }
+  await page.goto('/#/tag/2026-10-20')
+  await page.getByLabel('Block 1 Beginn').fill('07:06')
+  await page.getByLabel('Block 1 Ende').fill('11:33') // 4:27
+  await page.getByLabel('Block 2 Beginn').fill('12:07')
+  await page.getByLabel('Block 2 Ende').fill('16:30')
+
+  const rows = page.getByTestId('alloc-row')
+  const timeline = page.getByTestId('timeline')
+  const morningRows = page.locator('.alloc-group').nth(0).getByTestId('alloc-row')
+  const add = async (name: string, value: string) => {
+    const before = await rows.count()
+    await page.getByLabel('Projekt hinzufügen').selectOption({ label: name })
+    await expect(rows).toHaveCount(before + 1)
+    const row = rows.nth(before)
+    await row.getByRole('radio', { name: 'h:mm' }).click()
+    await row.getByLabel('Dauer oder Anteil').fill(value)
+    await row.getByLabel('Dauer oder Anteil').press('Enter')
+    await expect(row.getByTestId('alloc-result')).toHaveText(value)
+  }
+  await add('Reinigung', '1:30')
+  await add('Epis', '0:45')
+  await add('Revit', '1:30')
+  await expect.poll(() => selectedProjects(morningRows)).toEqual(['Reinigung', 'Epis', 'Revit'])
+
+  // Die mittlere Zeile (Epis) auf Zeitleiste → bleibt an ihrem Platz, oben wie unten
+  await morningRows.nth(1).getByRole('radio', { name: 'Zeitleiste' }).click()
+  await expect(timeline.getByTestId('segment-Epis · Büro')).toBeVisible()
+  await expect.poll(() => selectedProjects(morningRows)).toEqual(['Reinigung', 'Epis', 'Revit'])
+  const r = await (await timeline.getByTestId('locked-Reinigung · Büro').boundingBox())!
+  const e = await (await timeline.getByTestId('segment-Epis · Büro').boundingBox())!
+  const v = await (await timeline.getByTestId('locked-Revit · Büro').boundingBox())!
+  expect(r.x).toBeLessThan(e.x)
+  expect(e.x).toBeLessThan(v.x)
+  await expect(morningRows.nth(1).getByTestId('alloc-result')).toHaveText('0:45')
+
+  // Epis per Griff ans Blockende (↓)
+  await page.waitForTimeout(1100)
+  await morningRows.nth(1).getByRole('button', { name: 'Zeile verschieben' }).focus()
+  await page.keyboard.press('ArrowDown')
+  await expect.poll(() => selectedProjects(morningRows)).toEqual(['Reinigung', 'Revit', 'Epis'])
+
+  // Weiterbildung als Block-Rest ans Ende des Vormittags: 4:27 − 1:30 − 1:30 − 0:45 = 0:42
+  await page.getByLabel('Projekt hinzufügen').selectOption({ label: 'Weiterbildung' })
+  await expect(rows).toHaveCount(4)
+  const weiter = rows.last()
+  await weiter.getByRole('radio', { name: 'Block-Rest' }).click()
+  await expect(weiter.getByRole('radio', { name: 'Block-Rest' })).toHaveAttribute('aria-checked', 'true')
+  await expect.poll(() => selectedProjects(morningRows)).toEqual(['Reinigung', 'Revit', 'Epis', 'Weiterbildung'])
+  await expect(morningRows.nth(3).getByTestId('alloc-result')).toHaveText('0:42')
+
+  // h:mm-Zeile verlängern → Block-Rest schrumpft
+  await morningRows.nth(0).getByLabel('Dauer oder Anteil').fill('1:40')
+  await morningRows.nth(0).getByLabel('Dauer oder Anteil').press('Enter')
+  await expect(morningRows.nth(3).getByTestId('alloc-result')).toHaveText('0:32')
+  await page.screenshot({ path: 'test-results/linear.png', fullPage: true })
 })
