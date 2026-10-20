@@ -7,7 +7,7 @@ Persönliche Web-App, um jeden Tag schnell festzuhalten, **wie lange** gearbeite
 - **Tag**
   - Arbeitszeit über Stempel-Blöcke (Kommen/Gehen, Pausen sind die Lücken) oder als Gesamtzeit.
   - „Kommen (jetzt)“ / „Gehen (jetzt)“ für das Live-Stempeln.
-- **Projektverteilung** pro Zeile in `h:mm`, `%` des Tages oder als **Rest**.
+- **Projektverteilung** pro Zeile in `h:mm`, `%` des Tages, als **Rest** (des Tages) oder **Block-Rest** (Rest seines Stempel-Blocks). Eingaben wie `1:30`, `1.5`, `.5`, `90m`, `50%`.
   - Alles rechnet sofort neu, wenn sich die Arbeitszeit ändert.
   - Gerechnet wird minutengenau, und die Summe stimmt immer exakt.
 - **Auffüllen** auf drei Arten:
@@ -22,8 +22,11 @@ Persönliche Web-App, um jeden Tag schnell festzuhalten, **wie lange** gearbeite
   - Die Stempel-Blöcke erscheinen als Balken. Projekte zieht man direkt in einen Block; sie liegen dort lückenlos hintereinander.
   - Den rechten Rand eines Projekts ziehen (oder Pfeiltasten): Die folgenden Projekte rücken nach und behalten ihre Länge; länger geht nur, bis das letzte ans Blockende stößt.
   - Klick auf ein Projekt: Dauer direkt eintragen (wird auf den Platz im Block begrenzt), Büro/Meeting, Entfernen.
-  - In der Liste hat jede Zeile den Modus h:mm, %, Rest oder **Zeitleiste**. Nur Zeitleisten-Zeilen lassen sich oben ziehen; h:mm/%/Rest-Zeilen erscheinen oben blass und gesperrt (Klick → „Auf Zeitleiste übernehmen“).
-  - Die Liste ist zeitlich sortiert: Zeilen der Zeitleiste Block für Block von links nach rechts, danach die übrigen.
+  - **Ganze Segmente ziehen**: innerhalb eines Blocks umsortieren oder in einen anderen Block (Einfügemarke zeigt die Stelle; zu wenig Platz → Dauer wird begrenzt).
+  - **Rest im Block** (im Panel oder Modus „Block-Rest“): bekommt den freien Platz seines Blocks und wächst/schrumpft mit, wenn Nachbarn oder die Stempelzeiten sich ändern.
+  - In der Liste hat jede Zeile den Modus h:mm, %, Rest, Block-Rest oder **Zeitleiste**. Nur Zeitleisten-Zeilen lassen sich oben ziehen; h:mm/%/Rest-Zeilen erscheinen oben blass und gesperrt (Klick → „Auf Zeitleiste übernehmen“).
+  - Die Liste ist nach Blöcken gruppiert (z.B. „07:00–11:33“, „12:03–16:30“, dann „Ohne Zeitleiste“) und im Block zeitlich sortiert. Mit dem Griff ≡ (ziehen oder ↑/↓) verschiebt man Zeilen – auch in einen anderen Block oder aus der Zeitleiste heraus.
+  - Gleiches Projekt + Tätigkeit vor und nach der Pause: je Block eine Zeile mit „Σ“ (Summe); im Monat und im Export ist es eine Zeile.
   - Die offene Zeit ist gestreift.
 - **Soll & Überstunden:** Soll je Wochentag (Standard 8:18 Mo–Fr = 41:30). Tagesansicht zeigt Soll und Tagesdifferenz sowie die **Woche** (gearbeitet, noch bis Soll, noch bis zur Höchstarbeitszeit, Standard 45 h), die Monatstabelle eine Soll- und Differenz-Zeile. Einen Gesamtsaldo gibt es bewusst nicht – der kommt aus der Firmensoftware. Urlaub/Krank/Überstundenabbau sind normale Projekte.
 - **Feiertage je Arbeitsort:** Schweiz – Basel-Landschaft, Deutschland – Baden-Württemberg, Bayern, Rheinland-Pfalz (offline berechnet). Einzelne Tage abschaltbar, optionale zuschaltbar (z.B. Berchtoldstag), eigene ganze/halbe Tage. An Feiertagen kein Soll und keine Vorlage.

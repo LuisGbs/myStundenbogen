@@ -1,9 +1,9 @@
 import type { AllocationResult } from './allocation'
-import { clockToMinutes, formatDuration, minutesToClock } from './duration'
+import { dayRanges } from './dayTotal'
+import { formatDuration, minutesToClock } from './duration'
 import type { Allocation, Day, Minutes } from './types'
 
-/** Block-ID, wenn der Tag nur eine Gesamtzeit hat (ein einziger Block ohne Uhrzeit). */
-export const TOTAL_BLOCK_ID = 'gesamt'
+export { TOTAL_BLOCK_ID } from './dayTotal'
 
 /** Raster beim Ziehen der Segment-Ränder. */
 export const SNAP_MINUTES = 5
@@ -15,12 +15,13 @@ export const MIN_SEGMENT_MINUTES = 5
  * Ein Segment in einem Block; start/end in Minuten (Uhrzeit bzw. ab 0 bei
  * Gesamtzeit), left/width in % des Blocks.
  * - bound:    Zeile ist an diesen Block gebunden (feste Dauer, Rand ziehbar)
+ * - blockRest: Zeile bekommt den Rest dieses Blocks (wächst/schrumpft mit)
  * - floating: Zeile aus der Liste ohne Block (Rest, %, …) – füllt freien Platz
  * - open:     noch nicht verteilte Zeit
  */
 export interface TimelineSegment {
   allocationId: string | null
-  kind: 'bound' | 'floating' | 'open'
+  kind: 'bound' | 'blockRest' | 'floating' | 'open'
   start: Minutes
   end: Minutes
   minutes: Minutes
@@ -62,13 +63,25 @@ export function boundAllocations(allocations: Allocation[], blockId: string): Al
   return allocations.filter((a) => a.blockId === blockId && a.mode === 'duration')
 }
 
+/** Alle Zeilen eines Blocks (feste Dauern und „Rest im Block“) – in ihrer Listen-Reihenfolge. */
+export function blockAllocations(allocations: Allocation[], blockId: string): Allocation[] {
+  return allocations.filter((a) => a.blockId === blockId && (a.mode === 'duration' || a.mode === 'rest'))
+}
+
+/** Summe der festen Dauern in einem Block (ohne die Zeile `exceptId`). */
+function boundSum(allocations: Allocation[], blockId: string, exceptId?: string): Minutes {
+  return boundAllocations(allocations, blockId)
+    .filter((a) => a.id !== exceptId)
+    .reduce((s, a) => s + a.value, 0)
+}
+
 /**
  * Stempel-Blöcke als Balken. In jedem Block liegen die gebundenen Zeilen lückenlos
  * hintereinander; der freie Rest wird mit den übrigen Zeilen (Rest, %, …) und
  * der offenen Zeit gefüllt. Gibt null zurück, solange es nichts darzustellen gibt.
  */
 export function layoutTimeline(day: Day, result: AllocationResult, nowMinutes: Minutes | null = null): TimelineLayout | null {
-  const ranges = day.timeMode === 'total' ? totalRange(day) : blockRanges(day, nowMinutes)
+  const ranges = dayRanges(day, nowMinutes)
   if (ranges.length === 0) return null
 
   const sorted = [...ranges].sort((a, b) => a.start - b.start)
@@ -87,11 +100,14 @@ export function layoutTimeline(day: Day, result: AllocationResult, nowMinutes: M
       return { ...s, left: ((start - r.start) / minutes) * 100, width: ((end - start) / minutes) * 100, overflow: s.end > r.end }
     }
     let cursor = r.start
-    const segments = boundAllocations(day.allocations, r.id).map((a) => {
-      const seg = segment({ allocationId: a.id, kind: 'bound', start: cursor, end: cursor + a.value, minutes: a.value })
-      cursor += a.value
-      return seg
-    })
+    const segments: TimelineSegment[] = []
+    for (const a of blockAllocations(day.allocations, r.id)) {
+      const m = a.mode === 'duration' ? a.value : (result.minutes[a.id] ?? 0)
+      if (m <= 0) continue
+      const kind = a.mode === 'duration' ? 'bound' : 'blockRest'
+      segments.push(segment({ allocationId: a.id, kind, start: cursor, end: cursor + m, minutes: m }))
+      cursor += m
+    }
     return {
       id: r.id,
       index: r.index,
@@ -106,14 +122,14 @@ export function layoutTimeline(day: Day, result: AllocationResult, nowMinutes: M
       planned: r.planned,
       ...axis(r.start, r.end),
       segments,
-      boundMinutes: cursor - r.start,
+      boundMinutes: boundSum(day.allocations, r.id),
     }
   })
 
   // Freien Platz der Blöcke der Reihe nach mit den nicht gebundenen Zeilen und der offenen Zeit füllen.
   const blockIds = new Set(blocks.map((b) => b.id))
   const floating: { allocationId: string | null; minutes: Minutes }[] = day.allocations
-    .filter((a) => !(a.mode === 'duration' && a.blockId && blockIds.has(a.blockId)))
+    .filter((a) => !isOnTimeline(a, blockIds))
     .map((a) => ({ allocationId: a.id, minutes: result.minutes[a.id] ?? 0 }))
     .filter((p) => p.minutes > 0)
   if (result.open > 0) floating.push({ allocationId: null, minutes: result.open })
@@ -152,31 +168,6 @@ export function layoutTimeline(day: Day, result: AllocationResult, nowMinutes: M
   return { mode: day.timeMode === 'total' ? 'total' : 'clock', axisStart, axisEnd, blocks, breaks }
 }
 
-interface Range {
-  id: string
-  index: number
-  start: Minutes
-  end: Minutes
-  running: boolean
-  planned: boolean
-}
-
-function blockRanges(day: Day, nowMinutes: Minutes | null): Range[] {
-  return day.blocks.flatMap((b, index): Range[] => {
-    const start = clockToMinutes(b.start)
-    const running = b.end === null
-    const end = running ? nowMinutes : clockToMinutes(b.end!)
-    if (end === null || end <= start) return []
-    return [{ id: b.id, index, start, end, running, planned: !!b.planned }]
-  })
-}
-
-function totalRange(day: Day): Range[] {
-  return day.totalMinutes
-    ? [{ id: TOTAL_BLOCK_ID, index: 0, start: 0, end: day.totalMinutes, running: false, planned: false }]
-    : []
-}
-
 /** Auf das Zieh-Raster runden. */
 export function snapMinutes(minutes: Minutes): Minutes {
   return Math.round(minutes / SNAP_MINUTES) * SNAP_MINUTES
@@ -184,15 +175,13 @@ export function snapMinutes(minutes: Minutes): Minutes {
 
 /**
  * Längste erlaubte Dauer für ein gebundenes Segment: Die folgenden Segmente
- * rücken nach, dürfen aber nicht über das Blockende hinaus.
+ * rücken nach, dürfen aber nicht über das Blockende hinaus. Ein „Rest im Block“
+ * zählt nicht – er schrumpft einfach mit.
  */
 export function maxSegmentMinutes(allocations: Allocation[], allocationId: string, blockMinutes: Minutes): Minutes {
   const self = allocations.find((a) => a.id === allocationId)
   if (!self?.blockId) return blockMinutes
-  const others = boundAllocations(allocations, self.blockId)
-    .filter((a) => a.id !== allocationId)
-    .reduce((s, a) => s + a.value, 0)
-  return Math.max(blockMinutes - others, MIN_SEGMENT_MINUTES)
+  return Math.max(blockMinutes - boundSum(allocations, self.blockId, allocationId), MIN_SEGMENT_MINUTES)
 }
 
 /** Neue Dauer eines Segments, begrenzt auf [MIN, max]. */
@@ -203,48 +192,131 @@ export function resizeSegment(allocations: Allocation[], allocationId: string, m
 }
 
 /**
+ * Vor welcher Zeile landet etwas, das bei `dropMinute` in einen Block gezogen wird?
+ * Vor dem ersten Segment (fest oder Blockrest), dessen Mitte hinter dem Ablegepunkt
+ * liegt; null = ans Ende des Blocks. Die Zeile `selfId` (die gerade gezogen wird) zählt nicht.
+ */
+export function insertionBefore(
+  segments: Pick<TimelineSegment, 'allocationId' | 'kind' | 'start' | 'end'>[],
+  dropMinute: Minutes,
+  selfId: string | null = null,
+): string | null {
+  const hit = segments.find(
+    (s) => (s.kind === 'bound' || s.kind === 'blockRest') && s.allocationId !== selfId && dropMinute < (s.start + s.end) / 2,
+  )
+  return hit?.allocationId ?? null
+}
+
+/**
+ * Setzt eine Zeile in die Liste: vor `beforeId`, sonst hinter die letzte Zeile des
+ * Blocks `blockId`, sonst ans Ende. Die Reihenfolge im Array ist die Reihenfolge im Block.
+ */
+function place(list: Allocation[], item: Allocation, blockId: string | null, beforeId: string | null): Allocation[] {
+  let i = beforeId ? list.findIndex((a) => a.id === beforeId) : -1
+  if (i < 0 && blockId) {
+    const last = list.findLastIndex((a) => a.blockId === blockId && (a.mode === 'duration' || a.mode === 'rest'))
+    if (last >= 0) i = last + 1
+  }
+  if (i < 0) return [...list, item]
+  return [...list.slice(0, i), item, ...list.slice(i)]
+}
+
+/**
  * Fügt eine Zeile als gebundenes Segment in einen Block ein – vor dem Segment,
  * über dessen Mitte abgelegt wurde (sonst ans Ende des Blocks). Dauer = der
- * noch nicht fest belegte Platz im Block.
+ * noch nicht fest belegte Platz im Block; liegt dort ein „Rest im Block“,
+ * bekommt das neue Segment die Hälfte davon.
  * Gibt null zurück, wenn der Block schon voll belegt ist.
  */
 export function insertSegment(
   allocations: Allocation[],
-  block: Pick<TimelineBlock, 'id' | 'start' | 'minutes'>,
+  block: Pick<TimelineBlock, 'id' | 'start' | 'minutes'> & Partial<Pick<TimelineBlock, 'segments'>>,
   dropMinute: Minutes,
   newAllocation: Omit<Allocation, 'mode' | 'value' | 'blockId'>,
 ): Allocation[] | null {
-  const bound = boundAllocations(allocations, block.id)
-  const free = block.minutes - bound.reduce((s, a) => s + a.value, 0)
+  const free = block.minutes - boundSum(allocations, block.id)
   if (free < MIN_SEGMENT_MINUTES) return null
-
-  let cursor = block.start
-  const before = bound.find((a) => {
-    const middle = cursor + a.value / 2
-    cursor += a.value
-    return dropMinute < middle
-  })
-  const created: Allocation = { ...newAllocation, mode: 'duration', value: free, blockId: block.id }
-  if (!before) {
-    // Hinter dem letzten Segment dieses Blocks einsortieren (Listen-Reihenfolge = Zeitleiste).
-    const last = bound.at(-1)
-    if (!last) return [...allocations, created]
-    const i = allocations.indexOf(last)
-    return [...allocations.slice(0, i + 1), created, ...allocations.slice(i + 1)]
-  }
-  const i = allocations.indexOf(before)
-  return [...allocations.slice(0, i), created, ...allocations.slice(i)]
+  const hasRest = blockAllocations(allocations, block.id).some((a) => a.mode === 'rest')
+  const value = hasRest ? Math.min(free, Math.max(MIN_SEGMENT_MINUTES, snapMinutes(free / 2))) : free
+  const segments =
+    block.segments ??
+    (() => {
+      // Ohne Layout: Positionen aus den festen Dauern (Blockrest zählt hier mit 0).
+      let cursor = block.start
+      return blockAllocations(allocations, block.id).map((a) => {
+        const m = a.mode === 'duration' ? a.value : 0
+        const s = { allocationId: a.id, kind: 'bound' as const, start: cursor, end: cursor + m }
+        cursor += m
+        return s
+      })
+    })()
+  const created: Allocation = { ...newAllocation, mode: 'duration', value, blockId: block.id }
+  return place(allocations, created, block.id, insertionBefore(segments, dropMinute))
 }
 
-/** Liegt die Zeile auf der Zeitleiste (Modus „Zeitleiste“ = feste Dauer in einem vorhandenen Block)? */
+/** Liegt die Zeile auf der Zeitleiste (feste Dauer oder „Rest im Block“ in einem vorhandenen Block)? */
 export function isOnTimeline(allocation: Allocation, blockIds: ReadonlySet<string>): boolean {
-  return allocation.mode === 'duration' && !!allocation.blockId && blockIds.has(allocation.blockId)
+  return (
+    (allocation.mode === 'duration' || allocation.mode === 'rest') && !!allocation.blockId && blockIds.has(allocation.blockId)
+  )
 }
 
-/** Löst eine Zeile von der Zeitleiste (Dauer bleibt, Zeile ist danach fest/gesperrt). */
+/** Löst eine Zeile von der Zeitleiste (Dauer bleibt, Zeile ist danach fest/gesperrt; Blockrest wird Tages-Rest). */
 export function detachFromTimeline(allocation: Allocation): Allocation {
   const { blockId: _removed, ...rest } = allocation
   return rest
+}
+
+/** Macht aus einer Zeile „Rest im Block“ des Blocks `blockId`. */
+export function toBlockRest(allocation: Allocation, blockId: string): Allocation {
+  return { ...allocation, mode: 'rest', value: 0, blockId }
+}
+
+/** Ziel beim Verschieben: ein Block (oder null = „Ohne Zeitleiste“) und die Zeile, vor der es landet. */
+export interface MoveTarget {
+  blockId: string | null
+  beforeId: string | null
+}
+
+/**
+ * Verschiebt eine Zeile – in der Zeitleiste oder per Griff in der Liste.
+ * - In einen Block: Feste Dauer behält ihren Wert (in einem anderen Block höchstens
+ *   der dort freie Platz), „Rest im Block“ wechselt nur den Block, eine gesperrte
+ *   Zeile (h:mm, %, Rest) wird zur festen Dauer mit `resolvedMinutes`.
+ * - Nach „Ohne Zeitleiste“ (blockId null): Zeile wird gelöst.
+ * Gibt null zurück, wenn im Zielblock kein Platz ist.
+ */
+export function moveAllocation(
+  allocations: Allocation[],
+  allocationId: string,
+  target: MoveTarget,
+  blocks: Pick<TimelineBlock, 'id' | 'minutes'>[],
+  resolvedMinutes: Minutes | null,
+): Allocation[] | null {
+  const self = allocations.find((a) => a.id === allocationId)
+  if (!self) return null
+  if (target.beforeId === allocationId) return allocations
+  const others = allocations.filter((a) => a.id !== allocationId)
+  const blockIds = new Set(blocks.map((b) => b.id))
+
+  if (target.blockId === null) {
+    return place(others, isOnTimeline(self, blockIds) ? detachFromTimeline(self) : self, null, target.beforeId)
+  }
+  const block = blocks.find((b) => b.id === target.blockId)
+  if (!block) return null
+
+  let moved: Allocation
+  if (self.mode === 'rest' && isOnTimeline(self, blockIds)) {
+    moved = { ...self, blockId: block.id }
+  } else if (self.mode === 'duration' && self.blockId === block.id) {
+    moved = self
+  } else {
+    const free = block.minutes - boundSum(others, block.id)
+    if (free < MIN_SEGMENT_MINUTES) return null
+    const wanted = isOnTimeline(self, blockIds) ? self.value : Math.round(resolvedMinutes ?? 0)
+    moved = { ...self, mode: 'duration', value: Math.max(MIN_SEGMENT_MINUTES, Math.min(wanted || free, free)), blockId: block.id }
+  }
+  return place(others, moved, block.id, target.beforeId)
 }
 
 /**
@@ -255,22 +327,10 @@ export function detachFromTimeline(allocation: Allocation): Allocation {
 export function attachToBlock(
   allocations: Allocation[],
   allocationId: string,
-  block: Pick<TimelineBlock, 'id' | 'start' | 'minutes' | 'end'>,
+  block: Pick<TimelineBlock, 'id' | 'minutes'>,
   wantedMinutes: Minutes,
 ): Allocation[] | null {
-  const self = allocations.find((a) => a.id === allocationId)
-  if (!self) return null
-  const others = allocations.filter((a) => a.id !== allocationId)
-  const inserted = insertSegment(others, block, block.start + block.minutes, {
-    id: self.id,
-    projectId: self.projectId,
-    activityTypeId: self.activityTypeId,
-    note: self.note,
-  })
-  if (!inserted) return null
-  return inserted.map((a) =>
-    a.id === allocationId ? { ...a, value: Math.max(MIN_SEGMENT_MINUTES, Math.min(a.value, Math.round(wantedMinutes) || a.value)) } : a,
-  )
+  return moveAllocation(allocations, allocationId, { blockId: block.id, beforeId: null }, [block], wantedMinutes)
 }
 
 /**

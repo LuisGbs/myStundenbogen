@@ -58,7 +58,8 @@ export interface Allocation {
   note: string
   /**
    * Stempel-Block, in dem die Zeile auf der Zeitleiste liegt (TimeBlock.id bzw.
-   * 'gesamt' bei Gesamtzeit). Nur für feste Dauern; fehlt = frei verteilt.
+   * 'gesamt' bei Gesamtzeit). Bei mode 'duration' = Segment mit fester Dauer,
+   * bei mode 'rest' = „Rest im Block“; fehlt (oder Block unbekannt) = frei verteilt.
    */
   blockId?: string
 }

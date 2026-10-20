@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { applyDefaultFill } from '../../domain/allocation'
+import { applyDefaultFill, hasDayRest } from '../../domain/allocation'
 import { newId } from '../../domain/id'
 import type { ActivityType, Day, Project, Settings } from '../../domain/types'
 import { Icon } from '../../components/Icon'
@@ -37,7 +37,7 @@ export function FillMenu({ day, projects, activityTypes, settings, onChange }: P
     }
   }, [open])
 
-  const hasRest = day.allocations.some((a) => a.mode === 'rest')
+  const hasRest = hasDayRest(day.allocations)
   const proportional = day.fillStrategy === 'proportional'
   const target = settings.defaultFill
   const targetProject = target && projects.find((p) => p.id === target.projectId)

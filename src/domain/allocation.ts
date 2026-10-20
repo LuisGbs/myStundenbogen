@@ -44,9 +44,15 @@ export function roundPreservingSum(values: number[]): number[] {
   return result
 }
 
+/** „Rest im Block“: Rest-Zeile, die an einen vorhandenen Block gebunden ist. */
+export function isBlockRest(allocation: Allocation, blockIds: ReadonlySet<string>): boolean {
+  return allocation.mode === 'rest' && !!allocation.blockId && blockIds.has(allocation.blockId)
+}
+
 /**
  * Verteilt die Tageszeit auf die Zeilen eines Tages.
  * 1. Feste Dauern zählen direkt, Prozent-Zeilen bekommen ihren Anteil an der Tageszeit.
+ *    „Rest im Block“-Zeilen teilen sich, was in ihrem Block neben den festen Dauern frei ist.
  * 2. Rest-Zeilen teilen sich, was übrig bleibt. Gibt es keine und ist „proportional“
  *    aktiv, wird der Rest anteilig auf alle Zeilen aufgeschlagen.
  * 3. Rundung auf ganze Minuten, Summe bleibt exakt.
@@ -55,6 +61,7 @@ export function resolveAllocations(
   total: Minutes | null,
   allocations: Allocation[],
   fillStrategy: FillStrategy,
+  blocks: { id: string; minutes: Minutes }[] = [],
 ): AllocationResult {
   if (allocations.length === 0) {
     const t = total ?? 0
@@ -80,9 +87,22 @@ export function resolveAllocations(
     if (a.mode === 'percent') return (total * a.value) / 100
     return 0
   })
+
+  // Rest im Block: freier Platz des Blocks neben seinen festen Dauern, je Block auf Minuten gerundet.
+  const blockIds = new Set(blocks.map((b) => b.id))
+  for (const block of blocks) {
+    const rests = allocations.flatMap((a, i) => (a.blockId === block.id && isBlockRest(a, blockIds) ? [i] : []))
+    if (rests.length === 0) continue
+    const fixed = allocations
+      .filter((a) => a.blockId === block.id && a.mode === 'duration')
+      .reduce((s, a) => s + a.value, 0)
+    const free = Math.max(block.minutes - fixed, 0)
+    roundPreservingSum(rests.map(() => free / rests.length)).forEach((m, k) => (exact[rests[k]] = m))
+  }
+
   const fixedSum = exact.reduce((s, v) => s + v, 0)
   const remainder = total - fixedSum
-  const restIndices = allocations.flatMap((a, i) => (a.mode === 'rest' ? [i] : []))
+  const restIndices = allocations.flatMap((a, i) => (a.mode === 'rest' && !isBlockRest(a, blockIds) ? [i] : []))
 
   if (restIndices.length > 0) {
     const share = Math.max(remainder, 0) / restIndices.length
@@ -158,7 +178,16 @@ export function formatAllocationValue(allocation: Allocation): string {
  * wird die neue Zeile zur Rest-Zeile (ein Klick = „der Rest des Tages“).
  */
 export function modeForNewAllocation(allocations: Allocation[]): AllocationMode {
-  return allocations.some((a) => a.mode === 'rest') ? 'duration' : 'rest'
+  return hasDayRest(allocations) ? 'duration' : 'rest'
+}
+
+/**
+ * Gibt es eine Rest-Zeile für den ganzen Tag? „Rest im Block“ zählt nicht.
+ * (Eine Rest-Zeile mit Bindung an einen inzwischen gelöschten Block zählt hier
+ * vereinfacht auch nicht – sie wird beim nächsten Verschieben/Umstellen gelöst.)
+ */
+export function hasDayRest(allocations: Allocation[]): boolean {
+  return allocations.some((a) => a.mode === 'rest' && !a.blockId)
 }
 
 /**
@@ -174,7 +203,12 @@ export function applyDefaultFill(
     (a) => a.projectId === target.projectId && a.activityTypeId === target.activityTypeId,
   )
   if (existing) {
-    return allocations.map((a) => (a === existing ? { ...a, mode: 'rest', value: 0 } : a))
+    // Tages-Rest: eine evtl. Zeitleisten-Bindung fällt weg (sonst wäre es „Rest im Block“).
+    return allocations.map((a) => {
+      if (a !== existing) return a
+      const { blockId: _removed, ...rest } = a
+      return { ...rest, mode: 'rest', value: 0 }
+    })
   }
   return [
     ...allocations,
