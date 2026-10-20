@@ -33,10 +33,8 @@ test('Projekt anlegen → Zeit stempeln → verteilen → Monat → Export/Impor
   // Tag: zwei Stempel-Blöcke 07:45–12:00 und 12:45–16:48 = 8:18
   await page.goto(`/#/tag/${DATE}`)
   await expect(page.getByRole('heading', { name: 'Mi, 14.10.2026' })).toBeVisible()
-  await page.getByRole('button', { name: 'Block', exact: true }).click()
   await page.getByLabel('Block 1 Beginn').fill('07:45')
   await page.getByLabel('Block 1 Ende').fill('12:00')
-  await page.getByRole('button', { name: 'Block', exact: true }).click()
   await page.getByLabel('Block 2 Beginn').fill('12:45')
   await page.getByLabel('Block 2 Ende').fill('16:48')
   await expect(page.getByTestId('worked-total')).toHaveText('8:18')

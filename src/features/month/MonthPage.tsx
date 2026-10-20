@@ -128,6 +128,7 @@ export function MonthPage({ month }: { month: YearMonth }) {
                       <span className="wd">{weekdayShort(d.date)}</span>
                       <span className="dn">{dayOfMonth(d.date)}</span>
                       {hasWarning(d) && <span className="warn-dot" aria-label="nicht vollständig verteilt" />}
+                      {d.planned && <span className="plan-mark" aria-label="geplant">~</span>}
                     </a>
                   </th>
                 ))}
@@ -158,7 +159,12 @@ export function MonthPage({ month }: { month: YearMonth }) {
                   Gearbeitet
                 </th>
                 {grid.days.map((d) => (
-                  <td key={d.date} className={dayClass(d, today)} data-testid={`worked-${d.date}`}>
+                  <td
+                    key={d.date}
+                    className={`${dayClass(d, today)}${d.planned ? ' is-planned' : ''}`}
+                    data-testid={`worked-${d.date}`}
+                    title={d.planned ? 'Enthält geplante, noch nicht gestempelte Zeiten' : undefined}
+                  >
                     {fmt(d.worked ?? 0)}
                   </td>
                 ))}

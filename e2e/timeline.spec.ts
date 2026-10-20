@@ -32,11 +32,9 @@ test('Zeitleiste: Projekte in Blöcke ziehen, Rand ziehen, Nachbarn rücken nach
   }
 
   await page.goto('/#/tag/2026-10-14')
-  await expect(page.getByTestId('timeline')).toHaveCount(0) // ohne Zeiten keine Zeitleiste
-  await page.getByRole('button', { name: 'Block', exact: true }).click()
+  await expect(page.getByTestId('planned-block')).toHaveCount(2) // Vorlage – wird gleich überschrieben
   await page.getByLabel('Block 1 Beginn').fill('07:45')
   await page.getByLabel('Block 1 Ende').fill('12:00') // 4:15
-  await page.getByRole('button', { name: 'Block', exact: true }).click()
   await page.getByLabel('Block 2 Beginn').fill('12:45')
   await page.getByLabel('Block 2 Ende').fill('16:48')
   await expect(page.getByTestId('worked-total')).toHaveText('8:18')
@@ -142,10 +140,8 @@ test('Liste in zeitlicher Reihenfolge, Modus „Zeitleiste“ und gesperrte Zeil
     await expect(page.locator('.item-row input[aria-label="Projektname"]').last()).toHaveValue(name)
   }
   await page.goto('/#/tag/2026-10-14')
-  await page.getByRole('button', { name: 'Block', exact: true }).click()
   await page.getByLabel('Block 1 Beginn').fill('07:00')
   await page.getByLabel('Block 1 Ende').fill('11:00')
-  await page.getByRole('button', { name: 'Block', exact: true }).click()
   await page.getByLabel('Block 2 Beginn').fill('12:00')
   await page.getByLabel('Block 2 Ende').fill('16:00')
 

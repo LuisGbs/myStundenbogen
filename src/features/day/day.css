@@ -417,3 +417,48 @@
   pointer-events: none;
   transform: translate(-50%, -130%);
 }
+
+/* ---------- Geplanter Tag (Vorlage, noch nicht gestempelt) ---------- */
+.plan-note {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-small);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.plan-note span {
+  flex: 1 1 18rem;
+}
+
+.block-row.is-planned .input {
+  border-style: dashed;
+  color: var(--text-muted);
+  background: var(--surface-2);
+}
+
+.block-row.is-planned .block-row__duration {
+  color: var(--text-muted);
+  font-weight: 450;
+}
+
+.timeline__block.is-planned {
+  border-style: dashed;
+  border-color: var(--border-strong);
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--surface-2),
+    var(--surface-2) 6px,
+    var(--surface) 6px,
+    var(--surface) 12px
+  );
+}
+
+.timeline__block.is-planned .timeline__segment.is-open {
+  color: var(--text-muted);
+}

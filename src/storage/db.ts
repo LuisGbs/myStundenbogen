@@ -1,5 +1,6 @@
 import Dexie, { type Table } from 'dexie'
 import type { ActivityType, Day, Project, Settings } from '../domain/types'
+import { DEFAULT_DAY_TEMPLATE } from '../domain/plan'
 
 export interface MetaEntry {
   key: string
@@ -33,6 +34,17 @@ export class StundenbogenDB extends Dexie {
     })
     // v2: Allocation.blockId (optional) – Zeitleisten-Segmente. Kein Index, keine Datenänderung nötig.
     this.version(2).stores({})
+    // v3: TimeBlock.planned (optional) und Settings.dayTemplate – Standardwert kommt über die Migration.
+    this.version(3)
+      .stores({})
+      .upgrade(async (tx) => {
+        await tx
+          .table('settings')
+          .toCollection()
+          .modify((s: { dayTemplate?: unknown }) => {
+            if (!Array.isArray(s.dayTemplate)) s.dayTemplate = DEFAULT_DAY_TEMPLATE.map((b) => ({ ...b }))
+          })
+      })
   }
 }
 

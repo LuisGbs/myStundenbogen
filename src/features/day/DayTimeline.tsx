@@ -253,6 +253,7 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
             <span key={b.id} style={{ left: `${b.left}%`, width: `${b.width}%` }}>
               {b.label}
               {layout.mode === 'clock' && <span className="muted"> · {formatDuration(b.minutes)}</span>}
+              {b.planned && <span className="muted"> · geplant</span>}
             </span>
           ))}
         </div>
@@ -276,6 +277,7 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
                 'timeline__block',
                 chipDrag?.overBlock === block.id && 'is-over',
                 block.running && 'is-running',
+                block.planned && 'is-planned',
                 block.boundMinutes > block.minutes && 'is-overfull',
               ]
                 .filter(Boolean)
