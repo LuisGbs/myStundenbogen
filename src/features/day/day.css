@@ -386,9 +386,20 @@
   height: 28px;
 }
 
-.timeline-panel__presets {
+.timeline-panel__duration {
   display: inline-flex;
-  gap: 0.25rem;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: 0.5rem;
+}
+
+.timeline-panel.is-locked {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+
+.timeline__segment.is-floating {
+  cursor: pointer;
 }
 
 .drag-ghost {

@@ -1,5 +1,6 @@
 import { addDays, formatDateLong, isISODate, todayISO } from '../../domain/date'
 import { emptyDay, summarizeDay } from '../../domain/day'
+import { layoutTimeline } from '../../domain/timeline'
 import type { Day, ISODate } from '../../domain/types'
 import { Icon } from '../../components/Icon'
 import { useNow } from '../../lib/browser'
@@ -26,6 +27,7 @@ export function DayPage({ date }: { date: ISODate }) {
   const day = stored ?? emptyDay(date)
   const nowMinutes = isToday ? now.getHours() * 60 + now.getMinutes() : null
   const summary = summarizeDay(day, nowMinutes)
+  const timelineBlocks = layoutTimeline(day, summary.allocation, nowMinutes)?.blocks ?? []
   const change = (fn: (day: Day) => Day) => void updateDay(date, fn)
 
   return (
@@ -46,6 +48,7 @@ export function DayPage({ date }: { date: ISODate }) {
         projects={projects}
         activityTypes={activityTypes}
         settings={settings}
+        timelineBlocks={timelineBlocks}
         onChange={change}
       />
     </div>

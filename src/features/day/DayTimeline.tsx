@@ -1,10 +1,12 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import type { AllocationResult } from '../../domain/allocation'
 import { summarizeDay } from '../../domain/day'
-import { formatDuration } from '../../domain/duration'
+import { formatDuration, parseDuration } from '../../domain/duration'
 import { newId } from '../../domain/id'
 import {
+  attachToBlock,
   insertSegment,
+  isOnTimeline,
   layoutTimeline,
   maxSegmentMinutes,
   MIN_SEGMENT_MINUTES,
@@ -16,6 +18,7 @@ import {
 } from '../../domain/timeline'
 import type { ActivityType, Allocation, Day, Minutes, Project } from '../../domain/types'
 import { Icon } from '../../components/Icon'
+import { CommitInput } from '../../components/inputs'
 import { Segmented } from '../../components/Segmented'
 import { useProjectsByRecency } from './useProjectsByRecency'
 
@@ -51,13 +54,6 @@ interface Resize {
   committed: boolean
 }
 
-const SHARE_PRESETS = [
-  { share: 25, label: '¼' },
-  { share: 50, label: '½' },
-  { share: 75, label: '¾' },
-  { share: 100, label: 'Ganz' },
-]
-
 /** Block unter dem Zeiger und die Uhrzeit (Minute) an dieser Stelle. */
 function blockAt(x: number, y: number, blocks: TimelineBlock[]): { block: TimelineBlock; minute: Minutes } | null {
   const el = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-block-id]')
@@ -74,6 +70,8 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
   const [resize, setResize] = useState<Resize | null>(null)
   const resizeRef = useRef<Resize | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  /** Block, in dem eine gesperrte Zeile angeklickt wurde (gebundene Zeilen kennen ihren Block selbst). */
+  const [lockedBlockId, setLockedBlockId] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
   // Während des Ziehens am Rand: Vorschau mit der neuen Dauer (gespeichert wird beim Loslassen).
@@ -216,8 +214,14 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
     }
   }
 
+  const blockIds = new Set(layout.blocks.map((b) => b.id))
   const selected = selectedId ? allocationById.get(selectedId) : undefined
-  const selectedBlock = selected && layout.blocks.find((b) => b.id === selected.blockId)
+  const selectedLocked = !!selected && !isOnTimeline(selected, blockIds)
+  const selectedBlock = selected && layout.blocks.find((b) => b.id === (selectedLocked ? lockedBlockId : selected.blockId))
+  const select = (allocationId: string, block: TimelineBlock, kind: TimelineSegment['kind']) => {
+    setSelectedId(allocationId)
+    setLockedBlockId(kind === 'floating' ? block.id : null)
+  }
   const dragProject = chipDrag?.active ? projectById.get(chipDrag.projectId) : undefined
 
   return (
@@ -294,9 +298,9 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
                       .filter(Boolean)
                       .join(' ')}
                     style={{ left: `${s.left}%`, width: `${s.width}%`, background: s.kind === 'open' ? undefined : color }}
-                    title={`${name} ${formatDuration(s.minutes)}${s.kind === 'floating' ? ' (aus der Liste, nicht an den Block gebunden)' : ''}`}
-                    data-testid={s.kind === 'bound' ? `segment-${name}` : undefined}
-                    onClick={() => s.kind === 'bound' && setSelectedId(s.allocationId)}
+                    title={`${name} ${formatDuration(s.minutes)}${s.kind === 'floating' ? ' – in der Liste fest eingestellt (gesperrt)' : ''}`}
+                    data-testid={s.kind === 'bound' ? `segment-${name}` : s.kind === 'floating' ? `locked-${name}` : undefined}
+                    onClick={() => s.allocationId && select(s.allocationId, block, s.kind)}
                   >
                     <span>
                       {name} {formatDuration(s.minutes)}
@@ -316,6 +320,9 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
         <SegmentPanel
           allocation={selected}
           block={selectedBlock}
+          locked={selectedLocked}
+          minutes={selectedLocked ? (shownResult.minutes[selected.id] ?? 0) : selected.value}
+          maxMinutes={maxSegmentMinutes(shownDay.allocations, selected.id, selectedBlock.minutes)}
           projectName={projectById.get(selected.projectId)?.name ?? '?'}
           color={projectById.get(selected.projectId)?.color}
           activityTypes={activityTypes.filter((a) => a.active || a.id === selected.activityTypeId)}
@@ -325,7 +332,22 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
               allocations: d.allocations.map((a) => (a.id === selected.id ? { ...a, activityTypeId } : a)),
             }))
           }
-          onShare={(share) => commitResize(selected.id, Math.round((selectedBlock.minutes * share) / 100), selectedBlock.minutes)}
+          onDuration={(minutes) => {
+            const clamped = resizeSegment(day.allocations, selected.id, minutes, selectedBlock.minutes).find(
+              (a) => a.id === selected.id,
+            )!.value
+            commitResize(selected.id, minutes, selectedBlock.minutes)
+            return clamped
+          }}
+          onAttach={() => {
+            const wanted = shownResult.minutes[selected.id] ?? 0
+            if (!attachToBlock(day.allocations, selected.id, selectedBlock, wanted)) {
+              setMessage(`Der Block ${selectedBlock.label} ist schon voll belegt – zuerst ein Segment kürzen.`)
+              return
+            }
+            setMessage(null)
+            onChange((d) => ({ ...d, allocations: attachToBlock(d.allocations, selected.id, selectedBlock, wanted) ?? d.allocations }))
+          }}
           onRemove={() => {
             onChange((d) => ({ ...d, allocations: d.allocations.filter((a) => a.id !== selected.id) }))
             setSelectedId(null)
@@ -344,41 +366,82 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
   )
 }
 
+const MODE_TEXT: Record<Allocation['mode'], string> = {
+  duration: 'feste Dauer (h:mm)',
+  percent: 'Prozent des Tages',
+  rest: 'Rest des Tages',
+}
+
 function SegmentPanel({
   allocation,
   block,
+  locked,
+  minutes,
+  maxMinutes,
   projectName,
   color,
   activityTypes,
   onActivity,
-  onShare,
+  onDuration,
+  onAttach,
   onRemove,
   onClose,
 }: {
   allocation: Allocation
   block: TimelineBlock
+  /** Zeile ist unten fest eingestellt (h:mm, %, Rest) → hier nur Anzeige. */
+  locked: boolean
+  minutes: Minutes
+  maxMinutes: Minutes
   projectName: string
   color: string | undefined
   activityTypes: ActivityType[]
   onActivity: (activityTypeId: string) => void
-  onShare: (share: number) => void
+  /** Neue Dauer setzen; gibt die tatsächlich gesetzte (ggf. begrenzte) Dauer zurück. */
+  onDuration: (minutes: Minutes) => Minutes
+  onAttach: () => void
   onRemove: () => void
   onClose: () => void
 }) {
   return (
-    <div className="timeline-panel" data-testid="segment-panel">
+    <div className={`timeline-panel${locked ? ' is-locked' : ''}`} data-testid="segment-panel">
       <div className="timeline-panel__row">
         <span className="dot" style={{ background: color ?? 'transparent' }} />
         <strong>{projectName}</strong>
-        <span className="muted small">
-          {block.label} · <span className="num">{formatDuration(allocation.value)}</span>
-        </span>
+        <span className="muted small">{block.label}</span>
+        {locked ? (
+          <span className="badge badge--muted">gesperrt · {MODE_TEXT[allocation.mode]}</span>
+        ) : (
+          <label className="timeline-panel__duration">
+            <span className="muted small">Dauer</span>
+            <CommitInput
+              className="input input--amount"
+              aria-label="Dauer im Block"
+              value={formatDuration(minutes)}
+              onCommit={(text) => {
+                const parsed = parseDuration(text)
+                if (parsed === null) return null
+                return formatDuration(onDuration(parsed))
+              }}
+            />
+            <span className="muted small">max. {formatDuration(maxMinutes)}</span>
+          </label>
+        )}
         <button type="button" className="icon-btn icon-btn--subtle timeline-panel__close" aria-label="Schließen" onClick={onClose}>
           <Icon name="x" />
         </button>
       </div>
       <div className="timeline-panel__row">
-        {activityTypes.length <= 3 ? (
+        {locked ? (
+          <>
+            <span className="muted small">
+              {formatDuration(minutes)} – unten in der Liste fest eingestellt, hier gesperrt.
+            </span>
+            <button type="button" className="btn btn--small btn--primary" onClick={onAttach}>
+              Auf Zeitleiste übernehmen
+            </button>
+          </>
+        ) : activityTypes.length <= 3 ? (
           <Segmented
             size="small"
             ariaLabel="Tätigkeitsart"
@@ -400,14 +463,6 @@ function SegmentPanel({
             ))}
           </select>
         )}
-        <span className="muted small">Anteil am Block:</span>
-        <span className="timeline-panel__presets">
-          {SHARE_PRESETS.map((s) => (
-            <button key={s.share} type="button" className="btn btn--small" onClick={() => onShare(s.share)}>
-              {s.label}
-            </button>
-          ))}
-        </span>
         <button type="button" className="btn btn--small btn--ghost" onClick={onRemove}>
           <Icon name="trash" /> Entfernen
         </button>

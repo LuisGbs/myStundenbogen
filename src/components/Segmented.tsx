@@ -2,6 +2,7 @@ export interface SegmentedOption<T extends string> {
   value: T
   label: string
   title?: string
+  disabled?: boolean
 }
 
 interface Props<T extends string> {
@@ -24,6 +25,7 @@ export function Segmented<T extends string>({ options, value, onChange, ariaLabe
           aria-checked={o.value === value}
           className={o.value === value ? 'is-active' : undefined}
           title={o.title}
+          disabled={o.disabled}
           onClick={() => o.value !== value && onChange(o.value)}
         >
           {o.label}
