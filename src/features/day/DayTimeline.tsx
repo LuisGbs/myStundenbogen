@@ -20,6 +20,7 @@ import type { ActivityType, Allocation, Day, Minutes, Project } from '../../doma
 import { Icon } from '../../components/Icon'
 import { CommitInput } from '../../components/inputs'
 import { Segmented } from '../../components/Segmented'
+import { NoteInput } from './AllocationSection'
 import { useProjectsByRecency } from './useProjectsByRecency'
 
 interface Props {
@@ -350,6 +351,9 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
             setMessage(null)
             onChange((d) => ({ ...d, allocations: attachToBlock(d.allocations, selected.id, selectedBlock, wanted) ?? d.allocations }))
           }}
+          onNote={(note) =>
+            onChange((d) => ({ ...d, allocations: d.allocations.map((a) => (a.id === selected.id ? { ...a, note } : a)) }))
+          }
           onRemove={() => {
             onChange((d) => ({ ...d, allocations: d.allocations.filter((a) => a.id !== selected.id) }))
             setSelectedId(null)
@@ -386,6 +390,7 @@ function SegmentPanel({
   onActivity,
   onDuration,
   onAttach,
+  onNote,
   onRemove,
   onClose,
 }: {
@@ -402,6 +407,7 @@ function SegmentPanel({
   /** Neue Dauer setzen; gibt die tatsächlich gesetzte (ggf. begrenzte) Dauer zurück. */
   onDuration: (minutes: Minutes) => Minutes
   onAttach: () => void
+  onNote: (note: string) => void
   onRemove: () => void
   onClose: () => void
 }) {
@@ -468,6 +474,9 @@ function SegmentPanel({
         <button type="button" className="btn btn--small btn--ghost" onClick={onRemove}>
           <Icon name="trash" /> Entfernen
         </button>
+      </div>
+      <div className="timeline-panel__row timeline-panel__note">
+        <NoteInput value={allocation.note} onCommit={onNote} />
       </div>
     </div>
   )

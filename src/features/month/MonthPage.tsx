@@ -286,7 +286,11 @@ function GroupRows({
             {r.activityType.name}
           </th>
           {days.map((d, i) => (
-            <td key={d.date} className={columnClass(d, i)}>
+            <td
+              key={d.date}
+              className={`${columnClass(d, i)}${r.notes[i].length ? ' has-note' : ''}`}
+              title={r.notes[i].length ? r.notes[i].join('\n') : undefined}
+            >
               {r.perDay[i] > 0 ? <a href={href.day(d.date)}>{formatDuration(r.perDay[i])}</a> : ''}
             </td>
           ))}

@@ -275,6 +275,20 @@ function WorkTimeCard({ settings }: { settings: Settings }) {
           />
         </label>
         <label className="field">
+          <span className="field__label">Höchstarbeitszeit / Woche</span>
+          <CommitInput
+            className="input input--amount"
+            aria-label="Höchstarbeitszeit pro Woche"
+            value={formatDuration(settings.weeklyMaxMinutes ?? 45 * 60)}
+            onCommit={(text) => {
+              const minutes = parseDuration(text)
+              if (minutes === null || minutes <= 0) return null
+              void updateSettings({ weeklyMaxMinutes: minutes })
+              return formatDuration(minutes)
+            }}
+          />
+        </label>
+        <label className="field">
           <span className="field__label">gilt ab (Stichtag)</span>
           <input
             type="date"

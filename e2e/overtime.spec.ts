@@ -9,6 +9,7 @@ test('Soll, Überstunden-Saldo und Feiertage je Arbeitsort', async ({ page }) =>
   await expect(page.getByLabel('Soll Montag')).toHaveValue('8:18')
   await expect(page.getByLabel('Soll Samstag')).toHaveValue('0:00')
   await expect(page.getByText('41:30')).toBeVisible()
+  await expect(page.getByLabel('Höchstarbeitszeit pro Woche')).toHaveValue('45:00')
   await page.getByLabel('Überstunden-Übertrag').fill('+1:00')
   await page.getByLabel('Überstunden-Übertrag').press('Enter')
   await page.getByLabel('Stichtag Überstunden').fill('2026-10-12')
@@ -45,6 +46,13 @@ test('Soll, Überstunden-Saldo und Feiertage je Arbeitsort', async ({ page }) =>
   await page.getByLabel('Gesamte Arbeitszeit').press('Enter')
   await expect(page.getByTestId('day-diff')).toHaveText('±0:00')
   await expect(page.getByTestId('balance-after')).toHaveText('+1:42')
+
+  // Woche KW 42: 9:00 + 4:09 gearbeitet; Soll 4 × 8:18 + 4:09 = 37:21; max. 45:00
+  const week = page.getByTestId('week-line')
+  await expect(week).toContainText('KW 42 (12.10.–18.10.)')
+  await expect(page.getByTestId('week-worked')).toHaveText('13:09')
+  await expect(page.getByTestId('week-to-target')).toHaveText('24:12')
+  await expect(page.getByTestId('week-to-max')).toHaveText('31:51')
 
   // Mi: noch nichts erfasst (nur Vorlage) → zählt mit 0 h
   await page.goto('/#/tag/2026-10-14')

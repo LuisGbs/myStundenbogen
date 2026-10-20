@@ -1,5 +1,6 @@
 import { todayISO } from '../domain/date'
 import { DEFAULT_DAY_TEMPLATE } from '../domain/plan'
+import { DEFAULT_WEEKLY_MAX } from '../domain/target'
 import type { ActivityType, Settings } from '../domain/types'
 import { db } from './db'
 
@@ -14,6 +15,7 @@ export function defaultSettings(): Settings {
     balanceStart: { date: todayISO(), minutes: 0 },
     defaultFill: null,
     dayTemplate: DEFAULT_DAY_TEMPLATE.map((b) => ({ ...b })),
+    weeklyMaxMinutes: DEFAULT_WEEKLY_MAX,
   }
 }
 

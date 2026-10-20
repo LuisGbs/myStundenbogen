@@ -113,4 +113,6 @@ export interface Settings {
   defaultFill: { projectId: string; activityTypeId: string } | null
   /** Vorlage für noch nicht gestempelte Arbeitstage (leer = keine Vorlage). */
   dayTemplate: TemplateBlock[]
+  /** Höchstarbeitszeit pro Woche (Mo–So), z.B. 45 h nach Arbeitsgesetz. */
+  weeklyMaxMinutes: Minutes
 }

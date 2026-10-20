@@ -4,10 +4,12 @@ import {
   addMonths,
   formatDateLong,
   isISODate,
+  isoWeekNumber,
   monthDates,
   monthLabel,
   todayISO,
   weekdayIndex,
+  weekStart,
 } from './date'
 
 describe('Datumshilfen', () => {
@@ -40,5 +42,20 @@ describe('Datumshilfen', () => {
 
   it('liefert das lokale Datum', () => {
     expect(todayISO(new Date(2026, 9, 19, 23, 59))).toBe('2026-10-19')
+  })
+})
+
+describe('Kalenderwoche', () => {
+  it.each([
+    ['2026-10-20', 43],
+    ['2026-01-01', 1],
+    ['2025-12-29', 1], // gehört schon zu KW 1/2026
+    ['2027-01-01', 53], // Freitag → KW 53/2026
+    ['2021-01-03', 53],
+  ])('%s → KW %i', (date, week) => expect(isoWeekNumber(date)).toBe(week))
+
+  it('Montag der Woche', () => {
+    expect(weekStart('2026-10-25')).toBe('2026-10-19')
+    expect(weekStart('2026-10-19')).toBe('2026-10-19')
   })
 })

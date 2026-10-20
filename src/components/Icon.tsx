@@ -16,6 +16,7 @@ const PATHS = {
   upload: 'M12 21V9M7 14l5-5 5 5M5 3h14',
   folder: 'M3 6a2 2 0 012-2h4l2 2h8a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2z',
   fill: 'M4 6h16M4 12h16M4 18h9M18 15v6M15 18h6',
+  note: 'M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4',
   undo: 'M9 14L4 9l5-5M4 9h10.5a5.5 5.5 0 010 11H11',
   redo: 'M15 14l5-5-5-5M20 9H9.5a5.5 5.5 0 000 11H13',
 } as const

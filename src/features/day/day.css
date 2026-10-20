@@ -498,3 +498,67 @@
   padding-top: 0;
   border-top: 0;
 }
+
+/* ---------- Woche ---------- */
+.week-line {
+  flex-basis: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.week-line__text {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+}
+
+.week-line__bar {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+
+.week-line__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.week-line__fill.is-over {
+  background: var(--danger);
+}
+
+.week-line__mark {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--text-muted);
+}
+
+.week-line__mark.is-max {
+  background: var(--danger);
+}
+
+/* ---------- Notizen ---------- */
+.alloc-row__note {
+  flex-basis: 100%;
+  display: flex;
+  padding-left: 1.2rem;
+}
+
+.alloc-row__note .input {
+  flex: 1;
+  font-size: 0.9rem;
+}
+
+.icon-btn.has-note {
+  color: var(--accent);
+}
+
+.timeline-panel__note .input {
+  flex: 1;
+}

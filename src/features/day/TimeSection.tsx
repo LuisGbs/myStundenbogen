@@ -1,7 +1,9 @@
+import { formatDateShort } from '../../domain/date'
 import { analyzeBlocks, type BlockIssue } from '../../domain/dayTotal'
 import { clockToMinutes, formatDuration, formatSignedDuration, minutesToClock, nowClock, parseDuration } from '../../domain/duration'
 import { newId } from '../../domain/id'
 import { clockIn as clockInDay, confirmPlan, editBlock, hasPlannedBlocks } from '../../domain/plan'
+import type { WeekSummary } from '../../domain/target'
 import type { Day, ISODate, Minutes, TimeBlock, TimeMode } from '../../domain/types'
 import { Icon } from '../../components/Icon'
 import { CommitInput, TimeInput } from '../../components/inputs'
@@ -19,6 +21,8 @@ export interface DayBalance {
   after: Minutes | null
   /** Vergangene Arbeitstage ohne Eintrag (vor diesem Tag). */
   missingDays: ISODate[]
+  /** Woche Mo–So: gearbeitet, Soll, Höchstarbeitszeit. */
+  week: WeekSummary
 }
 
 interface Props {
@@ -224,11 +228,58 @@ function BalanceLine({ balance }: { balance: DayBalance }) {
           Überstunden-Saldo <strong className="num" data-testid="balance-after">{formatSignedDuration(after)}</strong>
         </span>
       )}
+      <WeekLine week={balance.week} />
       {missingDays.length > 0 && (
         <a className="balance-line__missing" href={href.day(missingDays[0])}>
           {missingDays.length === 1 ? '1 Arbeitstag' : `${missingDays.length} Arbeitstage`} ohne Eintrag (zählen mit 0 h)
         </a>
       )}
+    </div>
+  )
+}
+
+function WeekLine({ week }: { week: WeekSummary }) {
+  const scale = Math.max(week.max, week.worked, week.target, 1)
+  const pct = (m: Minutes) => `${Math.min(100, (m / scale) * 100)}%`
+  return (
+    <div className="week-line" data-testid="week-line">
+      <div className="week-line__text">
+        <span>
+          KW {week.weekNumber} ({formatDateShort(week.from)}–{formatDateShort(week.to)}): gearbeitet{' '}
+          <strong className="num" data-testid="week-worked">{formatDuration(week.worked)}</strong>
+        </span>
+        <span className={week.toTarget <= 0 ? 'is-plus' : undefined}>
+          {week.toTarget > 0 ? (
+            <>
+              bis Soll {formatDuration(week.target)} noch{' '}
+              <strong className="num" data-testid="week-to-target">{formatDuration(week.toTarget)}</strong>
+            </>
+          ) : (
+            <>
+              Soll {formatDuration(week.target)} erreicht{' '}
+              <strong className="num" data-testid="week-to-target">{formatSignedDuration(-week.toTarget)}</strong>
+            </>
+          )}
+        </span>
+        <span className={week.toMax < 0 ? 'is-minus' : undefined}>
+          {week.toMax >= 0 ? (
+            <>
+              bis max. {formatDuration(week.max)} noch{' '}
+              <strong className="num" data-testid="week-to-max">{formatDuration(week.toMax)}</strong>
+            </>
+          ) : (
+            <>
+              Höchstarbeitszeit {formatDuration(week.max)} überschritten um{' '}
+              <strong className="num" data-testid="week-to-max">{formatDuration(-week.toMax)}</strong>
+            </>
+          )}
+        </span>
+      </div>
+      <div className="week-line__bar" aria-hidden="true">
+        <div className={`week-line__fill${week.toMax < 0 ? ' is-over' : ''}`} style={{ width: pct(week.worked) }} />
+        <div className="week-line__mark" style={{ left: pct(week.target) }} title={`Soll ${formatDuration(week.target)}`} />
+        <div className="week-line__mark is-max" style={{ left: pct(week.max) }} title={`Max. ${formatDuration(week.max)}`} />
+      </div>
     </div>
   )
 }
