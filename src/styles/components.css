@@ -496,3 +496,126 @@ select.input {
   text-align: center;
   padding: 2rem;
 }
+
+.card__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.badge--muted {
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+
+.badge--new {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.badge--exists {
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+
+.badge--similar {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+/* ---------- Modaler Dialog ---------- */
+.modal {
+  width: min(560px, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-pop);
+}
+
+.modal[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.modal::backdrop {
+  background: rgb(10 15 25 / 0.45);
+}
+
+.modal__head,
+.modal__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.8rem 1rem;
+}
+
+.modal__head {
+  border-bottom: 1px solid var(--border);
+}
+
+.modal__foot {
+  border-top: 1px solid var(--border);
+}
+
+.modal__body {
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+/* ---------- Checkbox-Listen ---------- */
+.check-list__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0.75rem 0 0.4rem;
+}
+
+.check-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+}
+
+.check-list li + li {
+  border-top: 1px solid var(--border);
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.45rem 0.6rem;
+  cursor: pointer;
+}
+
+.check-row:hover {
+  background: var(--surface-2);
+}
+
+.check-row__name {
+  font-weight: 550;
+}
+
+.check-row__code {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.check-row__hint {
+  flex-basis: 100%;
+  padding-left: 1.6rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.check-row .badge {
+  margin-left: auto;
+}

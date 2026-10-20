@@ -52,7 +52,7 @@ test('Projekt anlegen → Zeit stempeln → verteilen → Monat → Export/Impor
   await expect(rows.nth(0).getByTestId('alloc-result')).toHaveText('4:09')
 
   // Beta: 1:00 (über die Schnellauswahl)
-  await page.locator('.chip', { hasText: 'Beta' }).click()
+  await page.locator('.alloc-add .chip', { hasText: 'Beta' }).click()
   await expect(rows).toHaveCount(2)
   await rows.nth(1).getByLabel('Dauer oder Anteil').fill('1:00')
   await rows.nth(1).getByLabel('Dauer oder Anteil').press('Enter')
@@ -60,7 +60,7 @@ test('Projekt anlegen → Zeit stempeln → verteilen → Monat → Export/Impor
   await expect(page.getByTestId('day-status')).toContainText('noch 3:09 offen')
 
   // Gamma als Rest-Zeile, Meeting
-  await page.locator('.chip', { hasText: 'Gamma' }).click()
+  await page.locator('.alloc-add .chip', { hasText: 'Gamma' }).click()
   await expect(rows).toHaveCount(3)
   await rows.nth(2).getByRole('radio', { name: 'Meeting' }).click()
   await expect(rows.nth(2).getByTestId('alloc-result')).toHaveText('3:09')

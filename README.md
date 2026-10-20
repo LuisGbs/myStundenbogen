@@ -18,7 +18,13 @@ Persönliche Web-App, um jeden Tag schnell festzuhalten, **wie lange** gearbeite
 - **Monatstabelle**
   - Tage nach rechts, Projekte und Tätigkeiten nach unten, Summen, Hinweise auf offene Tage.
   - „Tabelle kopieren“ (direkt in Excel einfügen) und CSV-Export.
+- **Zeitleiste** im Tag
+  - Die Stempel-Blöcke erscheinen als Balken, darunter die Verteilung auf die Projekte.
+  - Ein Projekt auf einen Block ziehen (oder den Block anklicken) und per Slider den Anteil wählen, z.B. „½ Vormittag“. Daraus wird eine feste Dauer.
 - **Projekte** anlegen, umbenennen, sortieren, aktivieren/deaktivieren. Inaktive bleiben in alten Monaten sichtbar.
+- **Projektliste teilen**
+  - „Exportieren …“ speichert ausgewählte Projekte (Name, Nummer, Farbe) und die Tätigkeitsarten – ohne Stunden und Tage – z.B. für Kollegen.
+  - „Importieren …“ liest so eine Liste ein. Man hakt an, was übernommen wird; schon vorhandene Projekte (gleiche Nummer oder gleicher Name) sind abgewählt.
 
 Eingabeformate: `8:18`, `8,3` (Dezimalstunden), `8h18`, `90m`, `50%`, `rest`.
 
