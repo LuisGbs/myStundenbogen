@@ -7,6 +7,8 @@ import type { ActivityType, Day, ISODate, Minutes, Project } from './types'
 export interface MonthRow {
   activityType: ActivityType
   perDay: Minutes[]
+  /** Notizen der Einträge je Tag (leer = keine). */
+  notes: string[][]
   total: Minutes
 }
 
@@ -64,8 +66,9 @@ export function buildMonthGrid(
   const projectById = new Map(projects.map((p) => [p.id, p]))
   const activityById = new Map(activityTypes.map((a) => [a.id, a]))
 
-  // projectId → activityTypeId → Minuten je Tag
+  // projectId → activityTypeId → Minuten je Tag (und Notizen je Tag)
   const cells = new Map<string, Map<string, Minutes[]>>()
+  const notes = new Map<string, string[][]>()
 
   const dayInfos: MonthDayInfo[] = dates.map((date, dayIndex) => {
     const day = dayByDate.get(date)
@@ -80,6 +83,13 @@ export function buildMonthGrid(
       let perDay = byActivity.get(a.activityTypeId)
       if (!perDay) byActivity.set(a.activityTypeId, (perDay = new Array<Minutes>(n).fill(0)))
       perDay[dayIndex] += minutes
+      const note = a.note.trim()
+      if (note) {
+        const key = `${a.projectId}|${a.activityTypeId}`
+        let perDayNotes = notes.get(key)
+        if (!perDayNotes) notes.set(key, (perDayNotes = Array.from({ length: n }, () => [])))
+        if (!perDayNotes[dayIndex].includes(note)) perDayNotes[dayIndex].push(note)
+      }
     }
     return {
       date,
@@ -105,6 +115,7 @@ export function buildMonthGrid(
         .map(([activityId, perDay]) => ({
           activityType: activityById.get(activityId) ?? placeholderActivity(activityId),
           perDay,
+          notes: notes.get(`${project.id}|${activityId}`) ?? Array.from({ length: n }, () => []),
           total: perDay.reduce((s, v) => s + v, 0),
         }))
         .sort((a, b) => a.activityType.sortOrder - b.activityType.sortOrder)

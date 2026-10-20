@@ -62,6 +62,19 @@ describe('buildMonthGrid', () => {
     expect(grid.totals).toEqual({ worked: 978, booked: 738, open: 240 })
   })
 
+  it('sammelt Notizen je Projekt, Tätigkeit und Tag (ohne Doppelte)', () => {
+    const withNotes = [
+      day('2026-10-05', 480, [
+        { ...alloc('n1', 'a', 'buero', 'duration', 60), note: 'Ticket 42' },
+        { ...alloc('n2', 'a', 'buero', 'duration', 60), note: 'Ticket 42' },
+        { ...alloc('n3', 'a', 'buero', 'rest'), note: 'Review' },
+      ]),
+    ]
+    const grid = buildMonthGrid('2026-10', withNotes, projects, activities, { includeEmptyActive: false })
+    expect(grid.groups[0].rows[0].notes[4]).toEqual(['Ticket 42', 'Review'])
+    expect(grid.groups[0].rows[0].notes[0]).toEqual([])
+  })
+
   it('blendet leere aktive Projekte nur auf Wunsch ein', () => {
     const without = buildMonthGrid('2026-10', days, projects, activities, { includeEmptyActive: false })
     const withEmpty = buildMonthGrid('2026-10', days, projects, activities, { includeEmptyActive: true })

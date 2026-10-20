@@ -3,17 +3,20 @@ import { clockToMinutes, nowClock } from './duration'
 import { holidayOn } from './holidays'
 import type { ClockTime, Day, Settings, TemplateBlock, TimeBlock } from './types'
 
-/** Standard-Vorlage für einen normalen Arbeitstag (in den Einstellungen änderbar). */
-export const DEFAULT_DAY_TEMPLATE: TemplateBlock[] = [
-  { start: '07:00', end: '11:33' },
-  { start: '12:03', end: '15:48' }, // zusammen 8:18 = Soll bei 41,5 h/Woche
-]
-
-/** Frühere Standard-Vorlage (9:00) – wird beim Update auf die neue umgestellt, falls unverändert. */
-export const OLD_DEFAULT_DAY_TEMPLATE: TemplateBlock[] = [
+/** 07:00–16:30 mit 30 min Mittag = 9:00 (bei 8:18 Soll täglich +0:42 Überstunden). */
+export const TEMPLATE_9H: TemplateBlock[] = [
   { start: '07:00', end: '11:33' },
   { start: '12:03', end: '16:30' },
 ]
+
+/** Vorlage genau auf Soll (8:18) – war kurzzeitig Standard, siehe Datenbank-Update v4/v5. */
+export const TEMPLATE_8H18: TemplateBlock[] = [
+  { start: '07:00', end: '11:33' },
+  { start: '12:03', end: '15:48' },
+]
+
+/** Standard-Vorlage für einen normalen Arbeitstag (in den Einstellungen änderbar). */
+export const DEFAULT_DAY_TEMPLATE: TemplateBlock[] = TEMPLATE_9H
 
 /** Feste IDs, damit Projekte, die man schon auf den Plan zieht, am Block hängen bleiben. */
 export const plannedBlockId = (index: number) => `plan-${index}`

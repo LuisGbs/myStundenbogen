@@ -278,3 +278,8 @@
 .month-empty {
   margin: 0;
 }
+
+/* Eintrag mit Notiz: kleine Ecke, Text im Tooltip */
+.month-grid td.has-note {
+  background-image: linear-gradient(225deg, var(--accent) 5px, transparent 5px);
+}

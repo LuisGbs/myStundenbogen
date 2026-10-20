@@ -182,6 +182,8 @@ function AllocationRow({
   const project = projects.find((p) => p.id === allocation.projectId)
   const projectOptions = projects.filter((p) => p.active || p.id === allocation.projectId)
   const typeOptions = activityTypes.filter((a) => a.active || a.id === allocation.activityTypeId)
+  const [noteOpen, setNoteOpen] = useState(false)
+  const showNote = noteOpen || allocation.note.trim() !== ''
 
   const commitValue = (text: string): string | null => {
     const preview = applyAmountInput(allocation, text)
@@ -275,6 +277,16 @@ function AllocationRow({
 
       <button
         type="button"
+        className={`icon-btn icon-btn--subtle${allocation.note.trim() ? ' has-note' : ''}`}
+        aria-label="Notiz"
+        aria-expanded={showNote}
+        title="Notiz zu diesem Eintrag"
+        onClick={() => setNoteOpen(!noteOpen)}
+      >
+        <Icon name="note" />
+      </button>
+      <button
+        type="button"
         className="icon-btn icon-btn--subtle"
         aria-label="Zeile entfernen"
         title="Zeile entfernen"
@@ -282,7 +294,42 @@ function AllocationRow({
       >
         <Icon name="x" />
       </button>
+      {showNote && (
+        <div className="alloc-row__note">
+          <NoteInput
+            value={allocation.note}
+            autoFocus={noteOpen && allocation.note.trim() === ''}
+            onCommit={(note) => onChange((current) => ({ ...current, note }))}
+          />
+        </div>
+      )}
     </div>
+  )
+}
+
+/** Notiz zu einem Eintrag (z.B. Tätigkeit für die Firmensoftware). */
+export function NoteInput({
+  value,
+  onCommit,
+  autoFocus = false,
+}: {
+  value: string
+  onCommit: (note: string) => void
+  autoFocus?: boolean
+}) {
+  return (
+    <CommitInput
+      className="input"
+      aria-label="Notiz zum Eintrag"
+      placeholder="Notiz, z.B. Tätigkeit oder Ticket"
+      autoFocus={autoFocus}
+      value={value}
+      onCommit={(text) => {
+        const note = text.trim()
+        onCommit(note)
+        return note
+      }}
+    />
   )
 }
 

@@ -98,3 +98,15 @@ export function formatDateShort(iso: ISODate): string {
 export function dayOfMonth(iso: ISODate): number {
   return Number(iso.slice(8, 10))
 }
+
+/** Montag der Woche, in der `iso` liegt. */
+export function weekStart(iso: ISODate): ISODate {
+  return addDays(iso, -weekdayIndex(iso))
+}
+
+/** Kalenderwoche nach ISO 8601 (Woche mit dem ersten Donnerstag = KW 1). */
+export function isoWeekNumber(iso: ISODate): number {
+  const thursday = addDays(iso, 3 - weekdayIndex(iso))
+  const firstThursdayOfYear = addDays(weekStart(`${thursday.slice(0, 4)}-01-04`), 3)
+  return Math.round((toUTC(thursday) - toUTC(firstThursdayOfYear)) / (7 * 86_400_000)) + 1
+}

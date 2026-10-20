@@ -18,9 +18,9 @@ describe('geplanter Arbeitstag', () => {
     const day = withPlannedBlocks(emptyDay(WEDNESDAY), settings)
     expect(day.blocks).toEqual([
       { id: 'plan-0', start: '07:00', end: '11:33', planned: true },
-      { id: 'plan-1', start: '12:03', end: '15:48', planned: true },
+      { id: 'plan-1', start: '12:03', end: '16:30', planned: true },
     ])
-    expect(workedMinutes(day)).toBe(498) // 8:18 = Soll
+    expect(workedMinutes(day)).toBe(540) // 9:00 = Soll 8:18 + 0:42
     expect(hasPlannedBlocks(day)).toBe(true)
   })
 

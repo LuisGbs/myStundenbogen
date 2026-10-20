@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { emptyDay } from './day'
 import { holidayOn } from './holidays'
-import { balanceUntil, targetMinutes, weeklyTarget } from './target'
+import { balanceUntil, targetMinutes, weeklyTarget, weekSummary } from './target'
 import type { Day } from './types'
 
 const settings = {
@@ -51,5 +51,23 @@ describe('Überstunden-Saldo', () => {
     const today: Day = { ...emptyDay('2026-10-12'), blocks: [{ id: 'b', start: '08:00', end: null }] }
     const r = balanceUntil([today], { ...settings, balanceStart: { date: '2026-10-12', minutes: 0 } }, '2026-10-12', '2026-10-12', 10 * 60)
     expect(r.minutes).toBe(120 - 498)
+  })
+})
+
+describe('Wochenübersicht', () => {
+  const week = { ...settings, weeklyMaxMinutes: 45 * 60 }
+  it('Woche Mo–So: gearbeitet, noch bis Soll, noch bis Höchstarbeitszeit', () => {
+    const days = [worked('2026-10-19', 540), worked('2026-10-20', 540), worked('2026-10-26', 540)]
+    const w = weekSummary(days, '2026-10-21', week, '2026-10-21')
+    expect(w).toMatchObject({ from: '2026-10-19', to: '2026-10-25', weekNumber: 43, worked: 1080, target: 2490 })
+    expect(w.toTarget).toBe(2490 - 1080) // noch 23:30 bis 41:30
+    expect(w.toMax).toBe(2700 - 1080) // noch 27:00 bis 45:00
+  })
+
+  it('Feiertage senken das Wochen-Soll, Überschreitung wird negativ', () => {
+    const days = ['2026-05-11', '2026-05-12', '2026-05-13', '2026-05-15', '2026-05-16'].map((d) => worked(d, 600))
+    const w = weekSummary(days, '2026-05-14', week, '2026-05-20') // Auffahrt am Do
+    expect(w.target).toBe(4 * 498)
+    expect(w.toMax).toBe(2700 - 3000)
   })
 })

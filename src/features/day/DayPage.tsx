@@ -1,8 +1,8 @@
-import { addDays, formatDateLong, isISODate, todayISO } from '../../domain/date'
+import { addDays, formatDateLong, isISODate, todayISO, weekStart } from '../../domain/date'
 import { emptyDay, summarizeDay } from '../../domain/day'
 import { holidayOn, type Holiday } from '../../domain/holidays'
 import { withPlannedBlocks } from '../../domain/plan'
-import { balanceUntil, targetMinutes } from '../../domain/target'
+import { balanceUntil, targetMinutes, weekSummary } from '../../domain/target'
 import { layoutTimeline } from '../../domain/timeline'
 import type { Day, ISODate } from '../../domain/types'
 import { Icon } from '../../components/Icon'
@@ -28,8 +28,10 @@ export function DayPage({ date }: { date: ISODate }) {
   // Für den Überstunden-Saldo: alle Tage vom Startdatum bis vor diesem Tag.
   const balanceFrom = settings && settings.balanceStart.date < date ? settings.balanceStart.date : date
   const balanceDays = useDaysInRange(balanceFrom, addDays(date, -1) < balanceFrom ? balanceFrom : addDays(date, -1))
+  const monday = weekStart(date)
+  const weekDays = useDaysInRange(monday, addDays(monday, 6))
 
-  if (stored === undefined || !projects || !activityTypes || !settings || !balanceDays) return null
+  if (stored === undefined || !projects || !activityTypes || !settings || !balanceDays || !weekDays) return null
 
   // Noch nichts gestempelt → Vorlage „normaler Arbeitstag“ als geplant zeigen.
   const day = withPlannedBlocks(stored ?? emptyDay(date), settings)
@@ -47,6 +49,7 @@ export function DayPage({ date }: { date: ISODate }) {
     recorded: recorded !== null,
     after: before && date >= settings.balanceStart.date ? before.minutes + (recorded ?? 0) - target : null,
     missingDays: before?.missingDays ?? [],
+    week: weekSummary(weekDays, date, settings, today, nowMinutes),
   }
   // Erste Änderung übernimmt den geplanten Tag mit (Projekte hängen dann an den Plan-Blöcken).
   const change = (fn: (day: Day) => Day) => void updateDay(date, (d) => fn(withPlannedBlocks(d, settings)))

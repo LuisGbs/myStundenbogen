@@ -35,7 +35,8 @@ In der Cloud-Umgebung nutzt Playwright das vorinstallierte Chromium unter `/opt/
 
 ## Fachliches
 
-- Soll-Zeit: 41,5 h/Woche = 8:18 Mo–Fr; Vorlage „normaler Arbeitstag“ 07:00–11:33 + 12:03–15:48.
+- Soll-Zeit: 41,5 h/Woche = 8:18 Mo–Fr, Höchstarbeitszeit 45 h/Woche; Vorlage „normaler Arbeitstag“ 07:00–11:33 + 12:03–16:30 (9:00, bewusst +0:42 Überstunden).
+- Datenbank-Updates (Dexie `.upgrade`) arbeiten mit festen Konstanten (z.B. `TEMPLATE_9H`), nie mit dem aktuellen Standardwert – sonst ändern alte Migrationen ihr Verhalten.
 - Einstellungen, die auf dem bisherigen Wert aufbauen, über `changeSettings(fn)` speichern (nicht `updateSettings` mit dem angezeigten Stand).
 - Feiertage: je nach Arbeitsort (`domain/holidays.ts`: CH-BL, DE-BW, DE-BY, DE-RP), Soll/Saldo in `domain/target.ts`.
 - Urlaub, Krankheit, Überstundenabbau sind in der Firmensoftware normale Projekte – keine Sonderlogik dafür bauen.

@@ -1,6 +1,7 @@
 import Dexie, { type Table } from 'dexie'
 import type { ActivityType, Day, Project, Settings } from '../domain/types'
-import { DEFAULT_DAY_TEMPLATE, OLD_DEFAULT_DAY_TEMPLATE } from '../domain/plan'
+import { TEMPLATE_8H18, TEMPLATE_9H } from '../domain/plan'
+import { DEFAULT_WEEKLY_MAX } from '../domain/target'
 
 export interface MetaEntry {
   key: string
@@ -42,7 +43,7 @@ export class StundenbogenDB extends Dexie {
           .table('settings')
           .toCollection()
           .modify((s: { dayTemplate?: unknown }) => {
-            if (!Array.isArray(s.dayTemplate)) s.dayTemplate = DEFAULT_DAY_TEMPLATE.map((b) => ({ ...b }))
+            if (!Array.isArray(s.dayTemplate)) s.dayTemplate = TEMPLATE_9H.map((b) => ({ ...b }))
           })
       })
     // v4: Standard-Vorlage 8:18 statt 9:00 – nur ersetzen, wenn noch die alte Standard-Vorlage drinsteht.
@@ -53,9 +54,24 @@ export class StundenbogenDB extends Dexie {
           .table('settings')
           .toCollection()
           .modify((s: { dayTemplate?: unknown }) => {
-            if (JSON.stringify(s.dayTemplate) === JSON.stringify(OLD_DEFAULT_DAY_TEMPLATE)) {
-              s.dayTemplate = DEFAULT_DAY_TEMPLATE.map((b) => ({ ...b }))
+            if (JSON.stringify(s.dayTemplate) === JSON.stringify(TEMPLATE_9H)) {
+              s.dayTemplate = TEMPLATE_8H18.map((b) => ({ ...b }))
             }
+          })
+      })
+    // v5: Standard-Vorlage wieder 9:00 (Überstunden sammeln) – nur, wenn noch die 8:18-Standardvorlage drinsteht;
+    //     neu: wöchentliche Höchstarbeitszeit (Standard 45 h).
+    this.version(5)
+      .stores({})
+      .upgrade(async (tx) => {
+        await tx
+          .table('settings')
+          .toCollection()
+          .modify((s: { dayTemplate?: unknown; weeklyMaxMinutes?: unknown }) => {
+            if (JSON.stringify(s.dayTemplate) === JSON.stringify(TEMPLATE_8H18)) {
+              s.dayTemplate = TEMPLATE_9H.map((b) => ({ ...b }))
+            }
+            if (typeof s.weeklyMaxMinutes !== 'number') s.weeklyMaxMinutes = DEFAULT_WEEKLY_MAX
           })
       })
   }
