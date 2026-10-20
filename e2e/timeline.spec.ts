@@ -97,12 +97,21 @@ test('Zeitleiste: Projekte in Blöcke ziehen, Rand ziehen, Nachbarn rücken nach
   await timeline.getByTestId('timeline-chip-Boxer').dragTo(morning)
   await expect(timeline.getByText('ist schon voll belegt')).toBeVisible()
 
-  // Segment anklicken → Panel: Meeting, ¼ des Blocks
+  // Segment anklicken → Panel: Meeting, Dauer direkt eintragen
   await violet.click({ position: { x: 10, y: 10 } })
   const panel = page.getByTestId('segment-panel')
   await panel.getByRole('radio', { name: 'Meeting' }).click()
   const violetMeeting = timeline.getByTestId('segment-Epis · Meeting')
-  await panel.getByRole('button', { name: '¼' }).click()
+  await panel.getByLabel('Dauer im Block').fill('1:04')
+  await panel.getByLabel('Dauer im Block').press('Enter')
+  await expect(violetMeeting.getByRole('slider')).toHaveAttribute('aria-valuenow', '64')
+  // Mehr als in den Block passt → wird auf das Maximum begrenzt
+  await panel.getByLabel('Dauer im Block').fill('5:00')
+  await panel.getByLabel('Dauer im Block').press('Enter')
+  await expect(violetMeeting.getByRole('slider')).toHaveAttribute('aria-valuenow', '90')
+  await expect(panel.getByLabel('Dauer im Block')).toHaveValue('1:30')
+  await panel.getByLabel('Dauer im Block').fill('1:04')
+  await panel.getByLabel('Dauer im Block').press('Enter')
   await expect(violetMeeting.getByRole('slider')).toHaveAttribute('aria-valuenow', '64')
 
   // Die Zeilen unten zeigen dieselben Dauern
@@ -121,4 +130,70 @@ test('Zeitleiste: Projekte in Blöcke ziehen, Rand ziehen, Nachbarn rücken nach
   await panel.getByRole('button', { name: 'Entfernen' }).click()
   await expect(timeline.getByTestId('segment-Boxer · Büro')).toHaveCount(0)
   await expect(rows).toHaveCount(2)
+})
+
+test('Liste in zeitlicher Reihenfolge, Modus „Zeitleiste“ und gesperrte Zeilen', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Neu beginnen' }).click()
+  await page.goto('/#/projekte')
+  for (const name of ['Revit', 'Reinigung', 'Weiterbildung']) {
+    await page.getByLabel('Projektname', { exact: true }).first().fill(name)
+    await page.getByRole('button', { name: 'Anlegen' }).click()
+    await expect(page.locator('.item-row input[aria-label="Projektname"]').last()).toHaveValue(name)
+  }
+  await page.goto('/#/tag/2026-10-14')
+  await page.getByRole('button', { name: 'Block', exact: true }).click()
+  await page.getByLabel('Block 1 Beginn').fill('07:00')
+  await page.getByLabel('Block 1 Ende').fill('11:00')
+  await page.getByRole('button', { name: 'Block', exact: true }).click()
+  await page.getByLabel('Block 2 Beginn').fill('12:00')
+  await page.getByLabel('Block 2 Ende').fill('16:00')
+
+  const timeline = page.getByTestId('timeline')
+  const rows = page.getByTestId('alloc-row')
+  const rowProjects = () => rows.locator('select[aria-label="Projekt"]').evaluateAll((els) =>
+    els.map((el) => (el as HTMLSelectElement).selectedOptions[0].textContent),
+  )
+
+  // Revit zuerst in den Nachmittag, danach Reinigung in den Vormittag
+  await timeline.getByTestId('timeline-chip-Revit').dragTo(timeline.getByTestId('timeline-block-1'))
+  await expect(timeline.getByTestId('segment-Revit · Büro')).toBeVisible()
+  await timeline.getByTestId('timeline-chip-Reinigung').dragTo(timeline.getByTestId('timeline-block-0'))
+  await expect(timeline.getByTestId('segment-Reinigung · Büro')).toBeVisible()
+  // Liste sortiert zeitlich: Vormittag (Reinigung) vor Nachmittag (Revit)
+  await expect.poll(rowProjects).toEqual(['Reinigung', 'Revit'])
+  await expect(rows.nth(0).getByRole('radio', { name: 'Zeitleiste' })).toHaveAttribute('aria-checked', 'true')
+
+  // Reinigung unten auf h:mm stellen → oben gesperrt, Dauer bleibt
+  await rows.nth(0).getByRole('radio', { name: 'h:mm' }).click()
+  await expect(timeline.getByTestId('segment-Reinigung · Büro')).toHaveCount(0)
+  const locked = timeline.getByTestId('locked-Reinigung · Büro')
+  await expect(locked).toBeVisible()
+  await expect(locked.getByRole('slider')).toHaveCount(0) // kein Griff
+  await expect.poll(rowProjects).toEqual(['Revit', 'Reinigung']) // gesperrte Zeilen nach den Zeitleisten-Zeilen
+
+  // Gesperrte Zeile anklicken → Panel ohne Bearbeitung, „Auf Zeitleiste übernehmen“
+  await locked.click()
+  const panel = page.getByTestId('segment-panel')
+  await expect(panel).toContainText('gesperrt')
+  await expect(panel.getByLabel('Dauer im Block')).toHaveCount(0)
+  await panel.getByRole('button', { name: 'Auf Zeitleiste übernehmen' }).click()
+  await expect(timeline.getByTestId('segment-Reinigung · Büro').getByRole('slider')).toHaveAttribute('aria-valuenow', '240')
+  await expect.poll(rowProjects).toEqual(['Reinigung', 'Revit'])
+
+  // Revit über das Panel auf 2:00 kürzen → Platz im Nachmittag
+  await timeline.getByTestId('segment-Revit · Büro').click({ position: { x: 10, y: 10 } })
+  await panel.getByLabel('Dauer im Block').fill('2:00')
+  await panel.getByLabel('Dauer im Block').press('Enter')
+  await expect(timeline.getByTestId('segment-Revit · Büro').getByRole('slider')).toHaveAttribute('aria-valuenow', '120')
+
+  // Weiterbildung unten als Rest → füllt oben die freie Zeit gesperrt auf; per Modus „Zeitleiste“ übernehmen
+  await page.getByLabel('Projekt hinzufügen').selectOption({ label: 'Weiterbildung' })
+  await expect(rows).toHaveCount(3)
+  await expect(rows.nth(2).getByRole('radio', { name: 'Rest' })).toHaveAttribute('aria-checked', 'true')
+  await expect(timeline.getByTestId('locked-Weiterbildung · Büro')).toBeVisible()
+  await rows.nth(2).getByRole('radio', { name: 'Zeitleiste' }).click()
+  await expect(timeline.getByTestId('segment-Weiterbildung · Büro')).toBeVisible()
+  await expect(page.getByTestId('day-status')).toContainText('8:00 vollständig verteilt')
+  await page.screenshot({ path: 'test-results/zeitleiste-modus.png', fullPage: true })
 })

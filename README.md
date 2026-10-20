@@ -21,8 +21,10 @@ Persönliche Web-App, um jeden Tag schnell festzuhalten, **wie lange** gearbeite
 - **Zeitleiste** im Tag
   - Die Stempel-Blöcke erscheinen als Balken. Projekte zieht man direkt in einen Block; sie liegen dort lückenlos hintereinander.
   - Den rechten Rand eines Projekts ziehen (oder Pfeiltasten): Die folgenden Projekte rücken nach und behalten ihre Länge; länger geht nur, bis das letzte ans Blockende stößt.
-  - Klick auf ein Projekt: Büro/Meeting, ¼ ½ ¾ Ganz des Blocks, Entfernen.
-  - Zeilen ohne Block (Rest, %) füllen den freien Platz blass auf, die offene Zeit ist gestreift.
+  - Klick auf ein Projekt: Dauer direkt eintragen (wird auf den Platz im Block begrenzt), Büro/Meeting, Entfernen.
+  - In der Liste hat jede Zeile den Modus h:mm, %, Rest oder **Zeitleiste**. Nur Zeitleisten-Zeilen lassen sich oben ziehen; h:mm/%/Rest-Zeilen erscheinen oben blass und gesperrt (Klick → „Auf Zeitleiste übernehmen“).
+  - Die Liste ist zeitlich sortiert: Zeilen der Zeitleiste Block für Block von links nach rechts, danach die übrigen.
+  - Die offene Zeit ist gestreift.
 - **Rückgängig / Wiederholen** für alle Änderungen an Tagen: Knöpfe ↶ ↷ oben rechts oder **Strg+Z** / **Strg+Y** (bzw. Strg+Shift+Z). Gilt, solange die Seite offen ist.
 - **Projekte** anlegen, umbenennen, sortieren, aktivieren/deaktivieren. Inaktive bleiben in alten Monaten sichtbar.
 - **Projektliste teilen**

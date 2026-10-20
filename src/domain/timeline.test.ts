@@ -2,7 +2,18 @@ import { describe, expect, it } from 'vitest'
 import { resolveAllocations } from './allocation'
 import { emptyDay } from './day'
 import { workedMinutes } from './dayTotal'
-import { insertSegment, layoutTimeline, maxSegmentMinutes, resizeSegment, snapMinutes, TOTAL_BLOCK_ID } from './timeline'
+import {
+  attachToBlock,
+  chronologicalOrder,
+  detachFromTimeline,
+  insertSegment,
+  isOnTimeline,
+  layoutTimeline,
+  maxSegmentMinutes,
+  resizeSegment,
+  snapMinutes,
+  TOTAL_BLOCK_ID,
+} from './timeline'
 import type { Allocation, Day } from './types'
 
 const alloc = (id: string, mode: Allocation['mode'], value = 0, blockId?: string): Allocation => ({
@@ -143,5 +154,42 @@ describe('insertSegment', () => {
 
   it('voller Block → null', () => {
     expect(insertSegment([alloc('a', 'duration', 255, 'am')], block, 500, base)).toBeNull()
+  })
+})
+
+describe('Modus „Zeitleiste“', () => {
+  const blocks = [
+    { id: 'pm', start: 765, minutes: 243, end: 1008 },
+    { id: 'am', start: 465, minutes: 255, end: 720 },
+  ]
+
+  it('sortiert die Liste zeitlich: Vormittag vor Nachmittag, im Block von links nach rechts, Rest danach', () => {
+    const list = [
+      alloc('revit', 'duration', 60, 'pm'),
+      alloc('frei', 'percent', 20),
+      alloc('reinigung', 'duration', 120, 'am'),
+      alloc('boxer', 'duration', 60, 'am'),
+      alloc('weg', 'duration', 30, 'geloescht'),
+    ]
+    expect(chronologicalOrder(list, blocks).map((a) => a.id)).toEqual(['reinigung', 'boxer', 'revit', 'frei', 'weg'])
+  })
+
+  it('lösen behält die Dauer, entfernt nur den Block', () => {
+    const detached = detachFromTimeline(alloc('a', 'duration', 60, 'am'))
+    expect(detached).toEqual(alloc('a', 'duration', 60))
+    expect('blockId' in detached).toBe(false)
+    expect(isOnTimeline(detached, new Set(['am']))).toBe(false)
+  })
+
+  it('anhängen: hinten in den Block, höchstens freier Platz', () => {
+    const list = [alloc('x', 'duration', 200, 'am'), alloc('fest', 'duration', 90), alloc('y', 'duration', 10, 'pm')]
+    const next = attachToBlock(list, 'fest', blocks[1], 90)!
+    expect(next.map((a) => a.id)).toEqual(['x', 'fest', 'y'])
+    expect(next[1]).toMatchObject({ mode: 'duration', blockId: 'am', value: 55 }) // nur 55 frei
+    expect(attachToBlock(list, 'fest', blocks[0], 90)![2]).toMatchObject({ blockId: 'pm', value: 90 })
+  })
+
+  it('anhängen an vollen Block → null', () => {
+    expect(attachToBlock([alloc('x', 'duration', 255, 'am'), alloc('f', 'rest')], 'f', blocks[1], 30)).toBeNull()
   })
 })

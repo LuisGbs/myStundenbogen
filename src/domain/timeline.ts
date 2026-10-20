@@ -229,3 +229,55 @@ export function insertSegment(
   const i = allocations.indexOf(before)
   return [...allocations.slice(0, i), created, ...allocations.slice(i)]
 }
+
+/** Liegt die Zeile auf der Zeitleiste (Modus „Zeitleiste“ = feste Dauer in einem vorhandenen Block)? */
+export function isOnTimeline(allocation: Allocation, blockIds: ReadonlySet<string>): boolean {
+  return allocation.mode === 'duration' && !!allocation.blockId && blockIds.has(allocation.blockId)
+}
+
+/** Löst eine Zeile von der Zeitleiste (Dauer bleibt, Zeile ist danach fest/gesperrt). */
+export function detachFromTimeline(allocation: Allocation): Allocation {
+  const { blockId: _removed, ...rest } = allocation
+  return rest
+}
+
+/**
+ * Hängt eine vorhandene Zeile hinten an einen Block an (Modus „Zeitleiste“).
+ * Dauer = gewünschte Minuten, höchstens der freie Platz im Block.
+ * Gibt null zurück, wenn im Block kein Platz ist.
+ */
+export function attachToBlock(
+  allocations: Allocation[],
+  allocationId: string,
+  block: Pick<TimelineBlock, 'id' | 'start' | 'minutes' | 'end'>,
+  wantedMinutes: Minutes,
+): Allocation[] | null {
+  const self = allocations.find((a) => a.id === allocationId)
+  if (!self) return null
+  const others = allocations.filter((a) => a.id !== allocationId)
+  const inserted = insertSegment(others, block, block.start + block.minutes, {
+    id: self.id,
+    projectId: self.projectId,
+    activityTypeId: self.activityTypeId,
+    note: self.note,
+  })
+  if (!inserted) return null
+  return inserted.map((a) =>
+    a.id === allocationId ? { ...a, value: Math.max(MIN_SEGMENT_MINUTES, Math.min(a.value, Math.round(wantedMinutes) || a.value)) } : a,
+  )
+}
+
+/**
+ * Reihenfolge für die Liste: erst die Zeilen auf der Zeitleiste in zeitlicher
+ * Reihenfolge (Block für Block, im Block von links nach rechts), dann die übrigen.
+ */
+export function chronologicalOrder(allocations: Allocation[], blocks: Pick<TimelineBlock, 'id' | 'start'>[]): Allocation[] {
+  const blockStart = new Map(blocks.map((b) => [b.id, b.start]))
+  const ids = new Set(blockStart.keys())
+  const onTimeline = allocations
+    .map((a, index) => ({ a, index }))
+    .filter(({ a }) => isOnTimeline(a, ids))
+    .sort((x, y) => blockStart.get(x.a.blockId!)! - blockStart.get(y.a.blockId!)! || x.index - y.index)
+    .map(({ a }) => a)
+  return [...onTimeline, ...allocations.filter((a) => !isOnTimeline(a, ids))]
+}

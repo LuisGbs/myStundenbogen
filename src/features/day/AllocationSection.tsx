@@ -1,5 +1,13 @@
 import { useState } from 'react'
 import {
+  attachToBlock,
+  chronologicalOrder,
+  detachFromTimeline,
+  isOnTimeline,
+  MIN_SEGMENT_MINUTES,
+  type TimelineBlock,
+} from '../../domain/timeline'
+import {
   applyAmountInput,
   changeAllocationMode,
   formatAllocationValue,
@@ -22,12 +30,14 @@ interface Props {
   projects: Project[]
   activityTypes: ActivityType[]
   settings: Settings
+  /** Blöcke der Zeitleiste (für Modus „Zeitleiste“ und die zeitliche Sortierung). */
+  timelineBlocks: TimelineBlock[]
   onChange: (fn: (day: Day) => Day) => void
 }
 
 const QUICK_ADD_COUNT = 5
 
-export function AllocationSection({ day, result, projects, activityTypes, settings, onChange }: Props) {
+export function AllocationSection({ day, result, projects, activityTypes, settings, timelineBlocks, onChange }: Props) {
   const byRecency = useProjectsByRecency(day.date, projects)
   const [focusId, setFocusId] = useState<string | null>(null)
 
@@ -51,6 +61,14 @@ export function AllocationSection({ day, result, projects, activityTypes, settin
     setAllocations((list) => list.map((a) => (a.id === id ? fn(a) : a)))
   const removeRow = (id: string) => setAllocations((list) => list.filter((a) => a.id !== id))
 
+  // Modus „Zeitleiste“: Zeile hinten an den ersten Block mit freiem Platz hängen.
+  const blockIds = new Set(timelineBlocks.map((b) => b.id))
+  const freeBlock = timelineBlocks.find((b) => b.minutes - b.boundMinutes >= MIN_SEGMENT_MINUTES)
+  const attachRow = (id: string, minutes: Minutes | null) => {
+    if (!freeBlock) return
+    setAllocations((list) => attachToBlock(list, id, freeBlock, minutes ?? 0) ?? list)
+  }
+
   // Schnellauswahl: zuletzt genutzte Projekte, aufgefüllt mit weiteren aktiven Projekten.
   const usedToday = new Set(day.allocations.map((a) => a.projectId))
   const quickAdd = byRecency.filter((p) => !usedToday.has(p.id)).slice(0, QUICK_ADD_COUNT)
@@ -64,10 +82,13 @@ export function AllocationSection({ day, result, projects, activityTypes, settin
 
       {day.allocations.length > 0 && (
         <div className="alloc-list">
-          {day.allocations.map((a) => (
+          {chronologicalOrder(day.allocations, timelineBlocks).map((a) => (
             <AllocationRow
               key={a.id}
               allocation={a}
+              onTimeline={isOnTimeline(a, blockIds)}
+              canAttach={!!freeBlock}
+              onAttach={() => attachRow(a.id, result.minutes[a.id] ?? null)}
               minutes={result.minutes[a.id] ?? null}
               total={result.total}
               projects={projects}
@@ -121,14 +142,21 @@ function projectLabel(p: Project): string {
   return `${p.name}${p.code ? ` (${p.code})` : ''}${p.active ? '' : ' – inaktiv'}`
 }
 
-const MODE_OPTIONS: { value: AllocationMode; label: string; title: string }[] = [
-  { value: 'duration', label: 'h:mm', title: 'Feste Dauer' },
-  { value: 'percent', label: '%', title: 'Anteil an der Tageszeit' },
-  { value: 'rest', label: 'Rest', title: 'Bekommt die restliche Zeit des Tages' },
+/** Eingabeart einer Zeile; „timeline“ = feste Dauer in einem Block, oben in der Zeitleiste bearbeitbar. */
+type RowMode = AllocationMode | 'timeline'
+
+const MODE_OPTIONS: { value: RowMode; label: string; title: string }[] = [
+  { value: 'duration', label: 'h:mm', title: 'Feste Dauer (oben gesperrt)' },
+  { value: 'percent', label: '%', title: 'Anteil an der Tageszeit (oben gesperrt)' },
+  { value: 'rest', label: 'Rest', title: 'Bekommt die restliche Zeit des Tages (oben gesperrt)' },
+  { value: 'timeline', label: 'Zeitleiste', title: 'Oben in der Zeitleiste ziehen und einstellen' },
 ]
 
 interface RowProps {
   allocation: Allocation
+  onTimeline: boolean
+  canAttach: boolean
+  onAttach: () => void
   minutes: Minutes | null
   total: Minutes | null
   projects: Project[]
@@ -138,7 +166,19 @@ interface RowProps {
   onRemove: () => void
 }
 
-function AllocationRow({ allocation, minutes, total, projects, activityTypes, autoFocus, onChange, onRemove }: RowProps) {
+function AllocationRow({
+  allocation,
+  onTimeline,
+  canAttach,
+  onAttach,
+  minutes,
+  total,
+  projects,
+  activityTypes,
+  autoFocus,
+  onChange,
+  onRemove,
+}: RowProps) {
   const project = projects.find((p) => p.id === allocation.projectId)
   const projectOptions = projects.filter((p) => p.active || p.id === allocation.projectId)
   const typeOptions = activityTypes.filter((a) => a.active || a.id === allocation.activityTypeId)
@@ -148,7 +188,11 @@ function AllocationRow({ allocation, minutes, total, projects, activityTypes, au
     if (!preview) return null
     // Gegen den gespeicherten Stand auswerten: Wurde gerade erst auf „%“ umgeschaltet,
     // ist das dort schon enthalten, in `allocation` (Anzeige) evtl. noch nicht.
-    onChange((current) => applyAmountInput(current, text) ?? current)
+    // Wird daraus % oder Rest, verlässt die Zeile die Zeitleiste.
+    onChange((current) => {
+      const next = applyAmountInput(current, text) ?? current
+      return next.mode === 'duration' ? next : detachFromTimeline(next)
+    })
     return formatAllocationValue(preview)
   }
 
@@ -203,9 +247,16 @@ function AllocationRow({ allocation, minutes, total, projects, activityTypes, au
       <Segmented
         size="small"
         ariaLabel="Eingabeart"
-        options={MODE_OPTIONS}
-        value={allocation.mode}
-        onChange={(mode) => onChange((current) => changeAllocationMode(current, mode, minutes, total))}
+        options={MODE_OPTIONS.map((o) =>
+          o.value === 'timeline' && !onTimeline && !canAttach
+            ? { ...o, disabled: true, title: 'Kein freier Platz in der Zeitleiste' }
+            : o,
+        )}
+        value={onTimeline ? 'timeline' : allocation.mode}
+        onChange={(mode) => {
+          if (mode === 'timeline') onAttach()
+          else onChange((current) => detachFromTimeline(changeAllocationMode(current, mode, minutes, total)))
+        }}
       />
 
       {/* Auch Rest-Zeilen haben ein Feld: Tippen von „1:00“ oder „50%“ wechselt direkt den Modus. */}
