@@ -31,6 +31,14 @@ export interface TimeBlock {
   start: ClockTime
   /** null = Block läuft noch (eingestempelt, noch nicht ausgestempelt). */
   end: ClockTime | null
+  /** Aus der Vorlage „normaler Arbeitstag“ – nur geplant, noch nicht gestempelt. */
+  planned?: boolean
+}
+
+/** Ein Block der Vorlage für einen normalen Arbeitstag. */
+export interface TemplateBlock {
+  start: ClockTime
+  end: ClockTime
 }
 
 /**
@@ -102,4 +110,6 @@ export interface Settings {
   balanceStart: { date: ISODate; minutes: Minutes }
   /** Ziel für „Rest auf Standardprojekt“. */
   defaultFill: { projectId: string; activityTypeId: string } | null
+  /** Vorlage für noch nicht gestempelte Arbeitstage (leer = keine Vorlage). */
+  dayTemplate: TemplateBlock[]
 }

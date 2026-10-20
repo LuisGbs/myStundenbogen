@@ -25,6 +25,7 @@ Persönliche Web-App, um jeden Tag schnell festzuhalten, **wie lange** gearbeite
   - In der Liste hat jede Zeile den Modus h:mm, %, Rest oder **Zeitleiste**. Nur Zeitleisten-Zeilen lassen sich oben ziehen; h:mm/%/Rest-Zeilen erscheinen oben blass und gesperrt (Klick → „Auf Zeitleiste übernehmen“).
   - Die Liste ist zeitlich sortiert: Zeilen der Zeitleiste Block für Block von links nach rechts, danach die übrigen.
   - Die offene Zeit ist gestreift.
+- **Geplanter Arbeitstag:** Ist an einem Werktag noch nichts gestempelt, steht die Vorlage (Standard 07:00–11:33 und 12:03–16:30, in den Einstellungen änderbar) grau als „geplant“ da. Man kann schon Projekte verteilen; jede nachgetragene Stempelzeit macht den Block echt, „Plan übernehmen“ alle auf einmal. Im Monat sind geplante Tage grau/kursiv mit „~“.
 - **Rückgängig / Wiederholen** für alle Änderungen an Tagen: Knöpfe ↶ ↷ oben rechts oder **Strg+Z** / **Strg+Y** (bzw. Strg+Shift+Z). Gilt, solange die Seite offen ist.
 - **Projekte** anlegen, umbenennen, sortieren, aktivieren/deaktivieren. Inaktive bleiben in alten Monaten sichtbar.
 - **Projektliste teilen**

@@ -39,6 +39,8 @@ export interface TimelineBlock {
   minutes: Minutes
   label: string
   running: boolean
+  /** Aus der Vorlage, noch nicht gestempelt. */
+  planned: boolean
   /** Position auf der Achse in %. */
   left: number
   width: number
@@ -101,6 +103,7 @@ export function layoutTimeline(day: Day, result: AllocationResult, nowMinutes: M
           ? `Gesamtzeit ${formatDuration(minutes)}`
           : `${minutesToClock(r.start)}–${r.running ? 'jetzt' : minutesToClock(r.end)}`,
       running: r.running,
+      planned: r.planned,
       ...axis(r.start, r.end),
       segments,
       boundMinutes: cursor - r.start,
@@ -155,6 +158,7 @@ interface Range {
   start: Minutes
   end: Minutes
   running: boolean
+  planned: boolean
 }
 
 function blockRanges(day: Day, nowMinutes: Minutes | null): Range[] {
@@ -163,12 +167,14 @@ function blockRanges(day: Day, nowMinutes: Minutes | null): Range[] {
     const running = b.end === null
     const end = running ? nowMinutes : clockToMinutes(b.end!)
     if (end === null || end <= start) return []
-    return [{ id: b.id, index, start, end, running }]
+    return [{ id: b.id, index, start, end, running, planned: !!b.planned }]
   })
 }
 
 function totalRange(day: Day): Range[] {
-  return day.totalMinutes ? [{ id: TOTAL_BLOCK_ID, index: 0, start: 0, end: day.totalMinutes, running: false }] : []
+  return day.totalMinutes
+    ? [{ id: TOTAL_BLOCK_ID, index: 0, start: 0, end: day.totalMinutes, running: false, planned: false }]
+    : []
 }
 
 /** Auf das Zieh-Raster runden. */

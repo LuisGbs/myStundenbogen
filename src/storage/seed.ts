@@ -1,4 +1,5 @@
 import { todayISO } from '../domain/date'
+import { DEFAULT_DAY_TEMPLATE } from '../domain/plan'
 import type { ActivityType, Settings } from '../domain/types'
 import { db } from './db'
 
@@ -12,6 +13,7 @@ export function defaultSettings(): Settings {
     customHolidays: [],
     balanceStart: { date: todayISO(), minutes: 0 },
     defaultFill: null,
+    dayTemplate: DEFAULT_DAY_TEMPLATE.map((b) => ({ ...b })),
   }
 }
 

@@ -1,6 +1,7 @@
 import { analyzeBlocks, type BlockIssue } from '../../domain/dayTotal'
 import { clockToMinutes, formatDuration, minutesToClock, nowClock, parseDuration } from '../../domain/duration'
 import { newId } from '../../domain/id'
+import { clockIn as clockInDay, confirmPlan, editBlock, hasPlannedBlocks } from '../../domain/plan'
 import type { Day, Minutes, TimeBlock, TimeMode } from '../../domain/types'
 import { Icon } from '../../components/Icon'
 import { CommitInput, TimeInput } from '../../components/inputs'
@@ -42,7 +43,7 @@ export function TimeSection({ day, isToday, nowMinutes, worked, onChange }: Prop
       )}
 
       <div className="worked-total">
-        <span>Gearbeitet</span>
+        <span>{day.timeMode === 'blocks' && hasPlannedBlocks(day) ? 'Gearbeitet (inkl. geplant)' : 'Gearbeitet'}</span>
         <strong className="num" data-testid="worked-total">
           {worked === null ? '–' : formatDuration(worked)}
         </strong>
@@ -57,8 +58,9 @@ function BlocksEditor({ day, isToday, nowMinutes, onChange }: Omit<Props, 'worke
   const isRunning = (b: TimeBlock) => b.end === null && analysis.running
 
   const setBlocks = (fn: (blocks: TimeBlock[]) => TimeBlock[]) => onChange((d) => ({ ...d, blocks: fn(d.blocks) }))
-  const updateBlock = (id: string, patch: Partial<TimeBlock>) =>
-    setBlocks((blocks) => blocks.map((b) => (b.id === id ? { ...b, ...patch } : b)))
+  // Jede geänderte Uhrzeit macht einen geplanten Block zum echten Stempel.
+  const updateBlock = (id: string, patch: Partial<Pick<TimeBlock, 'start' | 'end'>>) =>
+    setBlocks((blocks) => blocks.map((b) => (b.id === id ? editBlock(b, patch) : b)))
   const removeBlock = (id: string) => setBlocks((blocks) => blocks.filter((b) => b.id !== id))
 
   const addBlock = () =>
@@ -68,18 +70,34 @@ function BlocksEditor({ day, isToday, nowMinutes, onChange }: Omit<Props, 'worke
       const start = lastEnd ? minutesToClock(Math.min(clockToMinutes(lastEnd) + 30, 23 * 60 + 59)) : '08:00'
       return [...blocks, { id: newId(), start, end: null }]
     })
-  const clockIn = () => setBlocks((blocks) => [...blocks, { id: newId(), start: nowClock(), end: null }])
+  const clockIn = () => onChange((d) => clockInDay(d, newId()))
+  const planned = hasPlannedBlocks(day)
   const clockOut = () => running && updateBlock(running.id, { end: nowClock() })
 
   return (
     <div className="blocks">
+      {planned && (
+        <div className="plan-note" data-testid="plan-note">
+          <span>
+            <strong>Geplant</strong> – Vorlage „normaler Arbeitstag“, noch nicht gestempelt. Grau = nicht final; trag
+            die echten Zeiten nach oder übernimm den Plan.
+          </span>
+          <button type="button" className="btn btn--small" onClick={() => onChange(confirmPlan)}>
+            <Icon name="check" /> Plan übernehmen
+          </button>
+        </div>
+      )}
       {day.blocks.length === 0 && (
         <p className="muted">Noch keine Stempelzeiten. {isToday ? 'Stempel ein oder trag die Zeiten nach.' : ''}</p>
       )}
       {day.blocks.map((block, i) => {
         const issues = analysis.issues.filter((issue) => issueConcerns(issue, block.id))
         return (
-          <div key={block.id} className={`block-row${issues.length ? ' has-issue' : ''}`}>
+          <div
+            key={block.id}
+            className={`block-row${issues.length ? ' has-issue' : ''}${block.planned ? ' is-planned' : ''}`}
+            data-testid={block.planned ? 'planned-block' : 'block'}
+          >
             <TimeInput
               className="input input--time"
               aria-label={`Block ${i + 1} Beginn`}
@@ -96,6 +114,7 @@ function BlocksEditor({ day, isToday, nowMinutes, onChange }: Omit<Props, 'worke
             <span className={`block-row__duration num${isRunning(block) ? ' is-running' : ''}`}>
               {analysis.perBlock[i] === null ? '–' : formatDuration(analysis.perBlock[i]!)}
               {isRunning(block) && <span className="badge badge--live">läuft</span>}
+              {block.planned && <span className="badge badge--muted">geplant</span>}
             </span>
             <button
               type="button"

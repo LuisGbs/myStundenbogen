@@ -1,5 +1,6 @@
 import { addDays, formatDateLong, isISODate, todayISO } from '../../domain/date'
 import { emptyDay, summarizeDay } from '../../domain/day'
+import { withPlannedBlocks } from '../../domain/plan'
 import { layoutTimeline } from '../../domain/timeline'
 import type { Day, ISODate } from '../../domain/types'
 import { Icon } from '../../components/Icon'
@@ -24,11 +25,13 @@ export function DayPage({ date }: { date: ISODate }) {
 
   if (stored === undefined || !projects || !activityTypes || !settings) return null
 
-  const day = stored ?? emptyDay(date)
+  // Noch nichts gestempelt → Vorlage „normaler Arbeitstag“ als geplant zeigen.
+  const day = withPlannedBlocks(stored ?? emptyDay(date), settings)
   const nowMinutes = isToday ? now.getHours() * 60 + now.getMinutes() : null
   const summary = summarizeDay(day, nowMinutes)
   const timelineBlocks = layoutTimeline(day, summary.allocation, nowMinutes)?.blocks ?? []
-  const change = (fn: (day: Day) => Day) => void updateDay(date, fn)
+  // Erste Änderung übernimmt den geplanten Tag mit (Projekte hängen dann an den Plan-Blöcken).
+  const change = (fn: (day: Day) => Day) => void updateDay(date, (d) => fn(withPlannedBlocks(d, settings)))
 
   return (
     <div className="page page--narrow day-page">

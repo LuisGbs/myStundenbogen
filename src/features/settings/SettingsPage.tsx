@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
 import { todayISO } from '../../domain/date'
-import type { ActivityType, Project, Settings } from '../../domain/types'
+import { clockToMinutes, formatDuration, minutesToClock } from '../../domain/duration'
+import { isValidTemplate } from '../../domain/plan'
+import type { ActivityType, Project, Settings, TemplateBlock } from '../../domain/types'
 import { Icon } from '../../components/Icon'
+import { TimeInput } from '../../components/inputs'
 import { useToast } from '../../components/Toast'
 import { downloadFile, formatDateTime, pickTextFile } from '../../lib/browser'
 import {
@@ -25,6 +28,7 @@ export function SettingsPage() {
     <div className="page page--narrow">
       <BackupCard showToast={showToast} />
       <ExportImportCard showToast={showToast} />
+      <TemplateCard settings={settings} />
       <FillCard settings={settings} projects={projects} activityTypes={activityTypes} />
       <PrivacyCard />
       {toast}
@@ -209,6 +213,74 @@ function FillCard({ settings, projects, activityTypes }: { settings: Settings; p
           ))}
         </select>
       </label>
+    </section>
+  )
+}
+
+function TemplateCard({ settings }: { settings: Settings }) {
+  const template = settings.dayTemplate ?? []
+  const save = (next: TemplateBlock[]) => void updateSettings({ dayTemplate: next })
+  const update = (i: number, patch: Partial<TemplateBlock>) => save(template.map((b, j) => (j === i ? { ...b, ...patch } : b)))
+  const valid = isValidTemplate(template)
+
+  return (
+    <section className="card">
+      <header className="card__head">
+        <h2>Normaler Arbeitstag (Vorlage)</h2>
+      </header>
+      <p className="muted small">
+        Solange an einem Arbeitstag noch nichts gestempelt ist, werden diese Zeiten grau als <em>geplant</em>{' '}
+        vorbelegt. So kannst du Projekte schon grob verteilen und die echten Stempel später nachtragen.
+      </p>
+      <div className="blocks">
+        {template.map((b, i) => (
+          <div key={i} className="block-row">
+            <TimeInput
+              className="input input--time"
+              aria-label={`Vorlage Block ${i + 1} Beginn`}
+              value={b.start}
+              onCommit={(start) => update(i, { start })}
+            />
+            <span className="block-row__dash">–</span>
+            <TimeInput
+              className="input input--time"
+              aria-label={`Vorlage Block ${i + 1} Ende`}
+              value={b.end}
+              onCommit={(end) => update(i, { end })}
+            />
+            <span className="block-row__duration num">
+              {formatDuration(Math.max(0, clockToMinutes(b.end) - clockToMinutes(b.start)))}
+            </span>
+            <button
+              type="button"
+              className="icon-btn icon-btn--subtle"
+              aria-label={`Vorlage Block ${i + 1} entfernen`}
+              onClick={() => save(template.filter((_, j) => j !== i))}
+            >
+              <Icon name="x" />
+            </button>
+          </div>
+        ))}
+        {!valid && <p className="text-danger small">Ein Ende liegt vor dem Beginn.</p>}
+        <div className="button-row">
+          <button
+            type="button"
+            className="btn btn--small"
+            onClick={() => {
+              const lastEnd = template.at(-1)?.end ?? '07:30'
+              const start = minutesToClock(Math.min(clockToMinutes(lastEnd) + 30, 22 * 60))
+              save([...template, { start, end: minutesToClock(clockToMinutes(start) + 60) }])
+            }}
+          >
+            <Icon name="plus" /> Block
+          </button>
+          {template.length === 0 && <span className="muted small">Keine Vorlage – leere Tage bleiben leer.</span>}
+        </div>
+        <p className="muted small">
+          Summe: {formatDuration(template.reduce((sum, b) => sum + Math.max(0, clockToMinutes(b.end) - clockToMinutes(b.start)), 0))}{' '}
+          · gilt nur an Tagen mit Soll-Zeit (Mo–Fr)
+        </p>
+      </div>
     </section>
   )
 }

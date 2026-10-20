@@ -234,3 +234,16 @@
     margin-left: 0;
   }
 }
+
+.month-grid .is-planned {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.month-grid .plan-mark {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}

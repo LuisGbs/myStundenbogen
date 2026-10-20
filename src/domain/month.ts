@@ -23,6 +23,8 @@ export interface MonthDayInfo {
   booked: Minutes
   open: Minutes
   status: AllocationStatus
+  /** Enthält noch geplante (nicht gestempelte) Blöcke. */
+  planned: boolean
 }
 
 export interface MonthGrid {
@@ -67,7 +69,7 @@ export function buildMonthGrid(
 
   const dayInfos: MonthDayInfo[] = dates.map((date, dayIndex) => {
     const day = dayByDate.get(date)
-    if (!day) return { date, worked: null, booked: 0, open: 0, status: 'empty' }
+    if (!day) return { date, worked: null, booked: 0, open: 0, status: 'empty', planned: false }
     const now = date === options.today ? (options.nowMinutes ?? null) : null
     const { worked, allocation } = summarizeDay(day, now)
     for (const a of day.allocations) {
@@ -85,6 +87,7 @@ export function buildMonthGrid(
       booked: allocation.allocated,
       open: allocation.open,
       status: allocation.status,
+      planned: day.timeMode === 'blocks' && day.blocks.some((b) => b.planned),
     }
   })
 
