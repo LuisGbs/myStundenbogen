@@ -7,7 +7,6 @@ import {
   minutesToClock,
   parseAmount,
   parseDuration,
-  parseSignedDuration,
 } from './duration'
 
 describe('formatDuration', () => {
@@ -43,6 +42,10 @@ describe('parseAmount', () => {
     ['90m', 90],
     ['90 min', 90],
     [' 2:00 ', 120],
+    ['.5', 30],
+    [',25', 15],
+    ['.5h', 30],
+    [',75 h', 45],
   ])('%s → %i Minuten', (input, minutes) => {
     expect(parseAmount(input)).toEqual({ kind: 'duration', minutes })
   })
@@ -50,10 +53,11 @@ describe('parseAmount', () => {
   it('erkennt Prozent und Rest', () => {
     expect(parseAmount('50%')).toEqual({ kind: 'percent', percent: 50 })
     expect(parseAmount('33,3 %')).toEqual({ kind: 'percent', percent: 33.3 })
+    expect(parseAmount('.5%')).toEqual({ kind: 'percent', percent: 0.5 })
     expect(parseAmount('Rest')).toEqual({ kind: 'rest' })
   })
 
-  it.each(['', 'abc', '8:75', '1:2:3', '-1', '8h75'])('lehnt "%s" ab', (input) => {
+  it.each(['', 'abc', '8:75', '1:2:3', '-1', '8h75', '.', '1.', '..5'])('lehnt "%s" ab', (input) => {
     expect(parseAmount(input)).toBeNull()
   })
 
@@ -75,15 +79,5 @@ describe('formatPercent', () => {
   it('nutzt Dezimalkomma', () => {
     expect(formatPercent(50)).toBe('50 %')
     expect(formatPercent(33.333)).toBe('33,3 %')
-  })
-})
-
-describe('parseSignedDuration', () => {
-  it('versteht Vorzeichen', () => {
-    expect(parseSignedDuration('+3:20')).toBe(200)
-    expect(parseSignedDuration('-1:30')).toBe(-90)
-    expect(parseSignedDuration('−0:45')).toBe(-45)
-    expect(parseSignedDuration('2')).toBe(120)
-    expect(parseSignedDuration('x')).toBeNull()
   })
 })

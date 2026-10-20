@@ -1,4 +1,4 @@
-import { formatDuration, formatPercent, parseAmount } from './duration'
+import { formatDuration, formatPercent, isPlainNumber, parseAmount } from './duration'
 import type { Allocation, AllocationMode, FillStrategy, Minutes } from './types'
 
 /**
@@ -130,7 +130,7 @@ export function changeAllocationMode(
  */
 export function applyAmountInput(allocation: Allocation, text: string): Allocation | null {
   const trimmed = text.trim()
-  if (allocation.mode === 'percent' && /^\d+(?:[.,]\d+)?$/.test(trimmed)) {
+  if (allocation.mode === 'percent' && isPlainNumber(trimmed)) {
     return { ...allocation, value: Number(trimmed.replace(',', '.')) }
   }
   if (trimmed === '') return allocation.mode === 'rest' ? allocation : { ...allocation, value: 0 }

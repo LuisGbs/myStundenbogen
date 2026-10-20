@@ -107,7 +107,7 @@ export interface Settings {
   /** Feiertage der Vorlage ein-/ausschalten: key → aktiv. */
   holidayOverrides: Record<string, boolean>
   customHolidays: CustomHoliday[]
-  /** Überstunden-Übertrag zum Startdatum. */
+  /** Früher Startwert eines Gesamtsaldos – wird nicht mehr genutzt (bleibt für alte Sicherungen im Schema). */
   balanceStart: { date: ISODate; minutes: Minutes }
   /** Ziel für „Rest auf Standardprojekt“. */
   defaultFill: { projectId: string; activityTypeId: string } | null
