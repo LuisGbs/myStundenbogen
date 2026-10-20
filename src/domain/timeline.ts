@@ -73,7 +73,7 @@ function kindOf(a: Allocation): TimelineSegment['kind'] {
  * Gibt null zurück, solange es nichts darzustellen gibt.
  */
 export function layoutTimeline(day: Day, result: AllocationResult, nowMinutes: Minutes | null = null): TimelineLayout | null {
-  const ranges = dayRanges(day, nowMinutes)
+  const ranges = dayRanges(day, nowMinutes).filter((r) => r.end > r.start)
   if (ranges.length === 0) return null
 
   const sorted = [...ranges].sort((a, b) => a.start - b.start)
