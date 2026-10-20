@@ -19,10 +19,11 @@ export const MIN_SEGMENT_MINUTES = 5
  * - floating:  gesperrte Zeile (h:mm, %, Rest) an ihrem Platz im Block
  * - spill:     Teil eines Tages-Rests, der in seinem eigenen Block keinen Platz hatte
  * - open:      noch nicht verteilte Zeit
+ * - future:    laufender Block nach „jetzt“ bis zum voraussichtlichen Gehen (noch nicht vergangen)
  */
 export interface TimelineSegment {
   allocationId: string | null
-  kind: 'bound' | 'blockRest' | 'floating' | 'spill' | 'open'
+  kind: 'bound' | 'blockRest' | 'floating' | 'spill' | 'open' | 'future'
   start: Minutes
   end: Minutes
   minutes: Minutes
@@ -37,8 +38,12 @@ export interface TimelineBlock {
   /** Index in day.blocks (bei Gesamtzeit: 0). */
   index: number
   start: Minutes
+  /** Echtes Ende (beim laufenden Block: jetzt). */
   end: Minutes
+  /** Echte Dauer – nur sie wird verteilt. */
   minutes: Minutes
+  /** Angezeigte Dauer: beim laufenden Block bis zum voraussichtlichen Gehen (Bezug für left/width). */
+  displayMinutes: Minutes
   label: string
   running: boolean
   /** Aus der Vorlage, noch nicht gestempelt. */
@@ -70,15 +75,24 @@ function kindOf(a: Allocation): TimelineSegment['kind'] {
  * Stempel-Blöcke als Balken. Jede Zeile steht in ihrem Block (result.blockOf) –
  * in der Reihenfolge der Liste. Ein Tages-Rest nimmt den freien Platz an seiner
  * Stelle; was dort nicht hineinpasst, füllt freien Platz anderer Blöcke.
+ * `forecast`: Der laufende Block wird bis zum voraussichtlichen Gehen gezeichnet,
+ * der Teil nach „jetzt“ als „future“ (verteilt wird nur bis jetzt).
  * Gibt null zurück, solange es nichts darzustellen gibt.
  */
-export function layoutTimeline(day: Day, result: AllocationResult, nowMinutes: Minutes | null = null): TimelineLayout | null {
-  const ranges = dayRanges(day, nowMinutes).filter((r) => r.end > r.start)
+export function layoutTimeline(
+  day: Day,
+  result: AllocationResult,
+  nowMinutes: Minutes | null = null,
+  forecast: { blockId: string; end: Minutes } | null = null,
+): TimelineLayout | null {
+  const displayEnd = (r: { id: string; end: Minutes }) =>
+    forecast && forecast.blockId === r.id && forecast.end > r.end ? forecast.end : r.end
+  const ranges = dayRanges(day, nowMinutes).filter((r) => displayEnd(r) > r.start)
   if (ranges.length === 0) return null
 
   const sorted = [...ranges].sort((a, b) => a.start - b.start)
   const axisStart = sorted[0].start
-  const axisEnd = Math.max(...sorted.map((r) => r.end))
+  const axisEnd = Math.max(...sorted.map(displayEnd))
   const axis = (start: Minutes, end: Minutes) => ({
     left: ((start - axisStart) / (axisEnd - axisStart)) * 100,
     width: ((end - start) / (axisEnd - axisStart)) * 100,
@@ -90,10 +104,11 @@ export function layoutTimeline(day: Day, result: AllocationResult, nowMinutes: M
 
   const blocks: TimelineBlock[] = sorted.map((r, blockIndex) => {
     const minutes = r.end - r.start
+    const shown = displayEnd(r) - r.start
     const segment = (s: Omit<TimelineSegment, 'left' | 'width' | 'overflow'>): TimelineSegment => {
       const start = Math.min(s.start, r.end)
       const end = Math.min(s.end, r.end)
-      return { ...s, left: ((start - r.start) / minutes) * 100, width: ((end - start) / minutes) * 100, overflow: s.end > r.end }
+      return { ...s, left: ((start - r.start) / shown) * 100, width: ((end - start) / shown) * 100, overflow: s.end > r.end }
     }
     const members = day.allocations.filter((a) => result.blockOf[a.id] === r.id)
     // Platz für Tages-Rest: was neben allen anderen Zeilen des Blocks frei bleibt
@@ -119,13 +134,14 @@ export function layoutTimeline(day: Day, result: AllocationResult, nowMinutes: M
       start: r.start,
       end: r.end,
       minutes,
+      displayMinutes: shown,
       label:
         day.timeMode === 'total'
           ? `Gesamtzeit ${formatDuration(minutes)}`
-          : `${minutesToClock(r.start)}–${r.running ? 'jetzt' : minutesToClock(r.end)}`,
+          : `${minutesToClock(r.start)}–${r.running ? 'jetzt' : minutesToClock(r.end)}${shown > minutes ? ` (bis ~${minutesToClock(r.start + shown)})` : ''}`,
       running: r.running,
       planned: r.planned,
-      ...axis(r.start, r.end),
+      ...axis(r.start, displayEnd(r)),
       segments,
       fixedMinutes: members.filter((a) => isFixedMode(a.mode) || a.mode === 'percent').reduce((s, a) => s + minutesOf(a), 0),
     }
@@ -139,8 +155,8 @@ export function layoutTimeline(day: Day, result: AllocationResult, nowMinutes: M
       start,
       end: start + m,
       minutes: m,
-      left: ((start - block.start) / block.minutes) * 100,
-      width: (m / block.minutes) * 100,
+      left: ((start - block.start) / block.displayMinutes) * 100,
+      width: (m / block.displayMinutes) * 100,
       overflow: false,
     })
   for (const [allocationId, left] of restLeft) {
@@ -155,12 +171,16 @@ export function layoutTimeline(day: Day, result: AllocationResult, nowMinutes: M
       if (remaining <= 0) break
     }
   }
-  blocks.forEach((b, k) => ends[k] < b.end && piece(b, null, 'open', ends[k], b.end - ends[k]))
+  blocks.forEach((b, k) => {
+    if (ends[k] < b.end) piece(b, null, 'open', ends[k], b.end - ends[k])
+    if (b.displayMinutes > b.minutes) piece(b, null, 'future', b.end, b.displayMinutes - b.minutes)
+  })
 
   const breaks = []
   for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i].start > sorted[i - 1].end) {
-      breaks.push({ start: sorted[i - 1].end, end: sorted[i].start, ...axis(sorted[i - 1].end, sorted[i].start) })
+    const prevEnd = displayEnd(sorted[i - 1])
+    if (sorted[i].start > prevEnd) {
+      breaks.push({ start: prevEnd, end: sorted[i].start, ...axis(prevEnd, sorted[i].start) })
     }
   }
 

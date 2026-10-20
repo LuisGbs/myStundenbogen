@@ -701,3 +701,48 @@
   background: var(--accent-soft);
   font-weight: 650;
 }
+
+/* ---------- Laufender Block: noch nicht vergangen ---------- */
+.timeline__segment.is-future {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--surface-2),
+    var(--surface-2) 6px,
+    var(--surface) 6px,
+    var(--surface) 12px
+  );
+  color: var(--text-muted);
+  text-shadow: none;
+  font-weight: 500;
+  cursor: default;
+}
+
+.timeline__now {
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  left: -1px;
+  width: 2px;
+  background: var(--danger);
+  pointer-events: none;
+}
+
+.block-row__expected {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: 0.4rem;
+}
+
+.block-row__expected .input--time {
+  width: 7.2rem;
+}
+
+.forecast-line {
+  flex-basis: 100%;
+  color: var(--text-muted);
+}
+
+.forecast-line strong {
+  color: var(--text);
+}

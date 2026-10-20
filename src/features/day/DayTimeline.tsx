@@ -1,7 +1,7 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { changeAllocationMode, type AllocationResult } from '../../domain/allocation'
 import { summarizeDay } from '../../domain/day'
-import { formatDuration, parseDuration } from '../../domain/duration'
+import { formatDuration, minutesToClock, parseDuration } from '../../domain/duration'
 import { newId } from '../../domain/id'
 import {
   insertionBefore,
@@ -31,6 +31,8 @@ interface Props {
   projects: Project[]
   activityTypes: ActivityType[]
   nowMinutes: Minutes | null
+  /** Laufender Block: bis zum voraussichtlichen Gehen zeichnen (Rest grau). */
+  forecast: { blockId: string; end: Minutes } | null
   onChange: (fn: (day: Day) => Day) => void
 }
 
@@ -82,7 +84,7 @@ function blockAt(x: number, y: number, blocks: TimelineBlock[]): { block: Timeli
   const block = el && blocks.find((b) => b.id === el.dataset.blockId)
   if (!el || !block) return null
   const rect = el.getBoundingClientRect()
-  return { block, minute: block.start + ((x - rect.left) / rect.width) * block.minutes }
+  return { block, minute: block.start + ((x - rect.left) / rect.width) * block.displayMinutes }
 }
 
 /** Wo landet etwas, das an (x, y) losgelassen wird? `selfId` = gezogenes Segment (zählt nicht mit). */
@@ -101,7 +103,7 @@ function dropTargetAt(x: number, y: number, blocks: TimelineBlock[], selfId: str
 
 const fullMessage = (block: TimelineBlock) => `Der Block ${block.label} ist schon voll belegt – zuerst ein Segment kürzen.`
 
-export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, onChange }: Props) {
+export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, forecast, onChange }: Props) {
   const byRecency = useProjectsByRecency(day.date, projects)
   const [chipDrag, setChipDrag] = useState<ChipDrag | null>(null)
   const chipDragRef = useRef<ChipDrag | null>(null)
@@ -124,7 +126,7 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
     if (saved === undefined || saved === shown) setResize(null)
   }
   const shownResult = resize ? summarizeDay(shownDay, nowMinutes).allocation : result
-  const layout = layoutTimeline(shownDay, shownResult, nowMinutes)
+  const layout = layoutTimeline(shownDay, shownResult, nowMinutes, forecast)
   if (!layout) return null
 
   const defaultTypeId = (activityTypes.find((a) => a.active) ?? activityTypes[0])?.id ?? ''
@@ -264,7 +266,7 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
           maxMinutes: max,
           startX: e.clientX,
           startValue: allocation.value,
-          pxPerMinute: frame.getBoundingClientRect().width / block.minutes,
+          pxPerMinute: frame.getBoundingClientRect().width / block.displayMinutes,
           value: allocation.value,
           committed: false,
         })
@@ -383,6 +385,23 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
               style={{ left: `${block.left}%`, width: `${block.width}%` }}
             >
               {block.segments.map((s) => {
+                if (s.kind === 'future') {
+                  // Noch nicht vergangen: grau bis zum voraussichtlichen Gehen, davor die Jetzt-Linie
+                  return (
+                    <div
+                      key="future"
+                      className="timeline__segment is-future"
+                      style={{ left: `${s.left}%`, width: `${s.width}%` }}
+                      title={`noch ${formatDuration(s.minutes)} bis voraussichtlich ${minutesToClock(s.end)}`}
+                      data-testid="timeline-future"
+                    >
+                      <span>
+                        noch {formatDuration(s.minutes)} · bis {minutesToClock(s.end)}
+                      </span>
+                      <div className="timeline__now" aria-hidden="true" />
+                    </div>
+                  )
+                }
                 const allocation = s.allocationId ? allocationById.get(s.allocationId) : undefined
                 const color = allocation ? projectById.get(allocation.projectId)?.color : undefined
                 const name = segmentName(allocation)
@@ -486,6 +505,7 @@ const SEGMENT_HINT: Record<TimelineSegment['kind'], string> = {
   floating: ' – in der Liste fest eingestellt (gesperrt)',
   spill: ' – Teil des Tages-Rests (gesperrt)',
   open: '',
+  future: ' – noch nicht vergangen (bis voraussichtlich Gehen)',
 }
 
 const MODE_TEXT: Record<Allocation['mode'], string> = {

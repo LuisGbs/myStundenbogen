@@ -33,6 +33,8 @@ export interface TimeBlock {
   end: ClockTime | null
   /** Aus der Vorlage „normaler Arbeitstag“ – nur geplant, noch nicht gestempelt. */
   planned?: boolean
+  /** Nur bei laufendem Block: selbst eingetragenes „voraussichtlich gehen um …“ (fehlt = Vorlage). */
+  expectedEnd?: ClockTime
 }
 
 /** Ein Block der Vorlage für einen normalen Arbeitstag. */

@@ -86,6 +86,8 @@ export class StundenbogenDB extends Dexie {
             if (Array.isArray(day.allocations)) day.allocations = day.allocations.map(upgradeAllocationV5)
           })
       })
+    // v7: TimeBlock.expectedEnd („voraussichtlich gehen um …“) – optional, nichts umzustellen.
+    this.version(7).stores({})
   }
 }
 
