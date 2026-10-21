@@ -727,26 +727,6 @@
   pointer-events: none;
 }
 
-.block-row__expected {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin-left: 0.4rem;
-}
-
-.block-row__expected .input--time {
-  width: 7.2rem;
-}
-
-.forecast-line {
-  flex-basis: 100%;
-  color: var(--text-muted);
-}
-
-.forecast-line strong {
-  color: var(--text);
-}
-
 /* ---------- Gehen um (Soll / Ziel) ---------- */
 .end-times {
   display: flex;
@@ -785,6 +765,19 @@ button.end-times__tile:focus-visible {
 
 .end-times__tile strong {
   font-size: 1.1rem;
+}
+
+.end-times__plan {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding-left: 0.4rem;
+  border-left: 1px solid var(--border);
+}
+
+.end-times__plan .input--time {
+  width: 7.2rem;
 }
 
 .end-times__tile.is-done strong {

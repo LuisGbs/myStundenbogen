@@ -18,8 +18,7 @@ Persönliche Web-App, um jeden Tag schnell festzuhalten, **wie lange** gearbeite
 - **Monatstabelle**
   - Tage nach rechts, Projekte und Tätigkeiten nach unten, Summen, Hinweise auf offene Tage.
   - „Tabelle kopieren“ (direkt in Excel einfügen) und CSV-Export.
-- **Gehen um (heute):** Uhrzeit, zu der Soll (z.B. 8:18) und Ziel (Arbeitszeit der Vorlage, z.B. 9:00) erreicht sind – immer mit einer Pause von mindestens 30 min am Stück: Ist sie noch nicht genommen, ist sie eingerechnet; in der Pause geht es frühestens nach 30 min weiter. Antippen übernimmt die Zeit als „voraussichtlich bis“.
-- **Voraussichtlich gehen (eingestempelt):** Am laufenden Block steht „voraussichtlich bis 16:30“ (Ende der Vorlage, änderbar, z.B. für den Zug). Die Zeitleiste reicht bis dahin, der Teil nach „jetzt“ ist grau; darunter steht, was dann Tag und Woche ergeben. Nach dem voraussichtlichen Ende wächst der Block einfach mit.
+- **Gehen (heute) – eine Zeile:** Uhrzeit, zu der Soll (z.B. 8:18) und Ziel (Arbeitszeit der Vorlage, z.B. 9:00) erreicht sind – immer mit einer Pause von mindestens 30 min am Stück (noch nicht genommen → eingerechnet; in der Pause frühestens nach 30 min weiter). Eingestempelt steht daneben „Geplant [16:30] → 8:50 (+0:32)“: vorbelegt mit dem Ende der Vorlage, änderbar (z.B. für den Zug), Antippen einer Soll/Ziel-Kachel übernimmt deren Zeit. Die Zeitleiste reicht bis „Geplant“, der Teil nach „jetzt“ ist grau.
 - **„Gerade“ (nur heute):** Projekt antippen → es läuft mit, solange du eingestempelt bist (als „Rest im Block“ am Ende des laufenden Blocks). Wechsel zu einem anderen Projekt hält das alte mit seiner Zeit an, „Anhalten“ ebenso; „Gehen (jetzt)“ beendet es. Nicht eingestempelt: Antippen stempelt gleich ein.
 - **Zeitleiste** im Tag
   - Die Stempel-Blöcke erscheinen als Balken. Projekte zieht man direkt in einen Block; sie liegen dort lückenlos hintereinander.
