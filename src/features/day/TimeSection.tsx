@@ -64,13 +64,7 @@ export function TimeSection({ day, isToday, nowMinutes, worked, balance, onChang
       </header>
 
       {day.timeMode === 'blocks' ? (
-        <BlocksEditor
-          day={day}
-          isToday={isToday}
-          nowMinutes={nowMinutes}
-          expected={balance.forecast?.expected ?? null}
-          onChange={onChange}
-        />
+        <BlocksEditor day={day} isToday={isToday} nowMinutes={nowMinutes} onChange={onChange} />
       ) : (
         <TotalEditor day={day} onChange={onChange} />
       )}
@@ -81,11 +75,16 @@ export function TimeSection({ day, isToday, nowMinutes, worked, balance, onChang
           ends={balance.endTimes}
           target={balance.target}
           goal={balance.goal}
-          runningBlockId={day.blocks.find((b) => b.end === null && !b.planned)?.id ?? null}
-          onPick={(blockId, minutes) =>
+          forecast={balance.forecast}
+          onPlan={(blockId, value) =>
+            // „Geplant“ (voraussichtlich gehen): null = zurück auf die Vorlage
             onChange((d) => ({
               ...d,
-              blocks: d.blocks.map((b) => (b.id === blockId ? { ...b, expectedEnd: minutesToClock(minutes) } : b)),
+              blocks: d.blocks.map((b) => {
+                if (b.id !== blockId) return b
+                const { expectedEnd: _old, ...rest } = b
+                return value ? { ...rest, expectedEnd: value } : rest
+              }),
             }))
           }
         />
@@ -101,13 +100,7 @@ export function TimeSection({ day, isToday, nowMinutes, worked, balance, onChang
   )
 }
 
-function BlocksEditor({
-  day,
-  isToday,
-  nowMinutes,
-  expected,
-  onChange,
-}: Omit<Props, 'worked' | 'balance'> & { expected: ExpectedEnd | null }) {
+function BlocksEditor({ day, isToday, nowMinutes, onChange }: Omit<Props, 'worked' | 'balance'>) {
   const analysis = analyzeBlocks(day.blocks, nowMinutes)
   const running = day.blocks.find((b) => b.end === null)
   const isRunning = (b: TimeBlock) => b.end === null && analysis.running
@@ -117,15 +110,6 @@ function BlocksEditor({
   const updateBlock = (id: string, patch: Partial<Pick<TimeBlock, 'start' | 'end'>>) =>
     setBlocks((blocks) => blocks.map((b) => (b.id === id ? editBlock(b, patch) : b)))
   const removeBlock = (id: string) => setBlocks((blocks) => blocks.filter((b) => b.id !== id))
-  // „voraussichtlich gehen um …“ – leer/zurücksetzen = Vorlage
-  const setExpectedEnd = (id: string, value: string | null) =>
-    setBlocks((blocks) =>
-      blocks.map((b) => {
-        if (b.id !== id) return b
-        const { expectedEnd: _old, ...rest } = b
-        return value ? { ...rest, expectedEnd: value } : rest
-      }),
-    )
 
   const addBlock = () =>
     setBlocks((blocks) => {
@@ -180,30 +164,6 @@ function BlocksEditor({
               {isRunning(block) && <span className="badge badge--live">läuft</span>}
               {block.planned && <span className="badge badge--muted">geplant</span>}
             </span>
-            {isRunning(block) && expected?.blockId === block.id && (
-              <span className="block-row__expected">
-                <span className="muted small">voraussichtlich bis</span>
-                <TimeInput
-                  className="input input--time"
-                  aria-label="Voraussichtlich gehen um"
-                  title="Wann gehst du voraussichtlich? (z.B. passend zum Zug)"
-                  value={expected.planned === null ? '' : minutesToClock(expected.planned)}
-                  onCommit={(value) => setExpectedEnd(block.id, value)}
-                />
-                {expected.isPast && <span className="muted small">(vorbei)</span>}
-                {expected.custom && (
-                  <button
-                    type="button"
-                    className="icon-btn icon-btn--subtle"
-                    aria-label="Voraussichtliches Gehen zurücksetzen"
-                    title="Zurück auf die Vorlage"
-                    onClick={() => setExpectedEnd(block.id, null)}
-                  >
-                    <Icon name="undo" />
-                  </button>
-                )}
-              </span>
-            )}
             <button
               type="button"
               className="icon-btn icon-btn--subtle"
@@ -290,26 +250,29 @@ function BalanceLine({ balance }: { balance: DayBalance }) {
         Tag <strong className="num" data-testid="day-diff">{formatSignedDuration(dayDiff)}</strong>
         {!recorded && target > 0 && <span className="muted"> (noch nichts erfasst)</span>}
       </span>
-      {balance.forecast && !balance.forecast.expected.isPast && <ForecastLine forecast={balance.forecast} />}
       <WeekLine week={balance.week} />
     </div>
   )
 }
 
-/** „Feierabend“: bis wann für Soll und Ziel arbeiten (inkl. vorgeschriebener Pause). */
+/**
+ * Die eine „Gehen“-Zeile: bis wann für Soll und Ziel arbeiten (inkl. vorgeschriebener
+ * Pause) und – eingestempelt – „Geplant“ (voraussichtlich gehen) mit dem Tageswert.
+ */
 function EndTimesView({
   ends,
   target,
   goal,
-  runningBlockId,
-  onPick,
+  forecast,
+  onPlan,
 }: {
   ends: EndTimes
   target: Minutes
   goal: Minutes
-  runningBlockId: string | null
-  onPick: (blockId: string, minutes: Minutes) => void
+  forecast: DayBalance['forecast']
+  onPlan: (blockId: string, value: string | null) => void
 }) {
+  const runningBlockId = forecast?.expected.blockId ?? null
   const goals = [
     { key: 'soll', label: 'Soll', minutes: target },
     { key: 'ziel', label: 'Ziel', minutes: goal },
@@ -325,7 +288,7 @@ function EndTimesView({
 
   return (
     <div className="end-times" data-testid="end-times">
-      <span className="end-times__title">Gehen um</span>
+      <span className="end-times__title">Gehen</span>
       {goals.map((g) => {
         const at = ends.at(g.minutes)
         const text = at === null ? '✓ erreicht' : at >= 24 * 60 ? '–' : minutesToClock(at)
@@ -344,8 +307,8 @@ function EndTimesView({
             key={g.key}
             type="button"
             className="end-times__tile"
-            title="Als „voraussichtlich bis“ übernehmen"
-            onClick={() => onPick(runningBlockId, at)}
+            title="Als „Geplant“ übernehmen"
+            onClick={() => onPlan(runningBlockId, minutesToClock(at))}
           >
             {content}
           </button>
@@ -355,25 +318,47 @@ function EndTimesView({
           </span>
         )
       })}
+      {forecast && (
+        <span className="end-times__plan">
+          <span className="end-times__label">Geplant</span>
+          <TimeInput
+            className="input input--time"
+            aria-label="Voraussichtlich gehen um"
+            title="Wann gehst du voraussichtlich? (z.B. passend zum Zug)"
+            value={forecast.expected.planned === null ? '' : minutesToClock(forecast.expected.planned)}
+            onCommit={(value) => onPlan(forecast.expected.blockId, value)}
+          />
+          {forecast.expected.custom && (
+            <button
+              type="button"
+              className="icon-btn icon-btn--subtle"
+              aria-label="Voraussichtliches Gehen zurücksetzen"
+              title="Zurück auf die Vorlage"
+              onClick={() => onPlan(forecast.expected.blockId, null)}
+            >
+              <Icon name="undo" />
+            </button>
+          )}
+          {forecast.expected.isPast ? (
+            <span className="muted small">(vorbei)</span>
+          ) : (
+            <span className="small" data-testid="forecast-line">
+              → <strong className="num" data-testid="forecast-worked">{formatDuration(forecast.worked)}</strong> (
+              <strong
+                className={`num ${forecast.dayDiff < 0 ? 'is-minus' : forecast.dayDiff > 0 ? 'is-plus' : ''}`}
+                data-testid="forecast-diff"
+              >
+                {formatSignedDuration(forecast.dayDiff)}
+              </strong>
+              ){forecast.week.toMax < 0 && <span className="is-minus"> · Woche über {formatDuration(forecast.week.max)} h!</span>}
+            </span>
+          )}
+        </span>
+      )}
       <span className="muted small" data-testid="end-note">
         {note}
       </span>
     </div>
-  )
-}
-
-function ForecastLine({ forecast }: { forecast: NonNullable<DayBalance['forecast']> }) {
-  const { expected, worked, dayDiff, week } = forecast
-  return (
-    <span className="forecast-line small" data-testid="forecast-line">
-      Gehst du um {minutesToClock(expected.end)}: Tag{' '}
-      <strong className="num" data-testid="forecast-worked">{formatDuration(worked)}</strong> (
-      <span className={dayDiff < 0 ? 'is-minus' : dayDiff > 0 ? 'is-plus' : undefined}>
-        <strong className="num" data-testid="forecast-diff">{formatSignedDuration(dayDiff)}</strong>
-      </span>
-      ) · Woche dann {formatDuration(week.worked)}, bis max. {formatDuration(week.max)} noch{' '}
-      <strong className="num">{formatDuration(week.toMax)}</strong>
-    </span>
   )
 }
 
@@ -385,13 +370,13 @@ function WeekLine({ week }: { week: WeekSummary }) {
       <div className="week-line__text">
         <span>
           KW {week.weekNumber} ({formatDateShort(week.from)}–{formatDateShort(week.to)}): gearbeitet{' '}
-          <strong className="num" data-testid="week-worked">{formatDuration(week.worked)}</strong>
+          <strong className="num" data-testid="week-worked">{formatDuration(week.worked)}</strong> h
         </span>
         <span className={week.toTarget <= 0 ? 'is-plus' : undefined}>
           {week.toTarget > 0 ? (
             <>
               bis Soll {formatDuration(week.target)} noch{' '}
-              <strong className="num" data-testid="week-to-target">{formatDuration(week.toTarget)}</strong>
+              <strong className="num" data-testid="week-to-target">{formatDuration(week.toTarget)}</strong> h
             </>
           ) : (
             <>
@@ -404,7 +389,7 @@ function WeekLine({ week }: { week: WeekSummary }) {
           {week.toMax >= 0 ? (
             <>
               bis max. {formatDuration(week.max)} noch{' '}
-              <strong className="num" data-testid="week-to-max">{formatDuration(week.toMax)}</strong>
+              <strong className="num" data-testid="week-to-max">{formatDuration(week.toMax)}</strong> h
             </>
           ) : (
             <>

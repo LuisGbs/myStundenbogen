@@ -24,6 +24,9 @@ test('Eingestempelt: Zeitleiste bis voraussichtlich Gehen, Vorhersage, eigenes E
   await expect(future).toContainText('noch 3:23')
   await expect(timeline.locator('.timeline__labels')).toContainText('12:07–jetzt (bis ~16:30)')
   await expect(expectedInput).toHaveValue('16:30')
+  // Nur eine Stelle zum Gehen: Feld und Vorhersage stehen in der „Gehen“-Zeile
+  await expect(page.getByTestId('end-times').getByLabel('Voraussichtlich gehen um')).toBeVisible()
+  await expect(page.getByTestId('week-line')).toContainText(' h')
   await expect(page.getByTestId('forecast-worked')).toHaveText('8:50')
   await expect(page.getByTestId('forecast-diff')).toHaveText('+0:32')
   // Gehen um: Soll 8:18 → 15:58, Ziel 9:00 → 16:40 (Pause 11:33–12:07 genommen)
