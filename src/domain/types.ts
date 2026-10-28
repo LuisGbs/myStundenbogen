@@ -135,6 +135,8 @@ export interface Task {
   /** z.B. Ticket oder Link als Text */
   note: string
   done: boolean
+  /** Wichtig/Fokus (★): steht oben – nur bei Aufgaben, nicht bei Stichpunkten */
+  starred: boolean
   /** Tag, an dem abgehakt wurde */
   doneAt: ISODate | null
   /** Reihenfolge unter Geschwistern (gleiches Projekt, gleiche Aufgabe) */

@@ -8,14 +8,19 @@ export interface TaskNode {
 
 const bySortOrder = (a: Task, b: Task) => a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt)
 
-/** Aufgaben eines Projekts mit ihren Stichpunkten, offene zuerst bzw. getrennt nach erledigt. */
+/** Aufgaben eines Projekts mit ihren Stichpunkten, getrennt nach offen (★ zuerst) und erledigt. */
 export function taskTree(tasks: Task[], projectId: string): { open: TaskNode[]; done: TaskNode[] } {
   const own = tasks.filter((t) => t.projectId === projectId)
   const nodes = own
     .filter((t) => t.parentId === null)
     .sort(bySortOrder)
     .map((task) => ({ task, items: own.filter((i) => i.parentId === task.id).sort(bySortOrder) }))
-  return { open: nodes.filter((n) => !n.task.done), done: nodes.filter((n) => n.task.done) }
+  // Wichtige (★) zuerst, sonst eigene Reihenfolge
+  const open = nodes.filter((n) => !n.task.done)
+  return {
+    open: [...open.filter((n) => n.task.starred), ...open.filter((n) => !n.task.starred)],
+    done: nodes.filter((n) => n.task.done),
+  }
 }
 
 /** Fortschritt „2/5“ einer Aufgabe (Stichpunkte). */
