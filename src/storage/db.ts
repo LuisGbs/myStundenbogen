@@ -91,6 +91,17 @@ export class StundenbogenDB extends Dexie {
     this.version(7).stores({})
     // v8: Aufgaben-Reiter – neue Tabelle für Aufgaben und Stichpunkte.
     this.version(8).stores({ tasks: 'id, projectId, parentId, sortOrder' })
+    // v9: Task.starred (★ wichtig) – vorhandene Aufgaben sind nicht markiert.
+    this.version(9)
+      .stores({})
+      .upgrade(async (tx) => {
+        await tx
+          .table('tasks')
+          .toCollection()
+          .modify((t: { starred?: unknown }) => {
+            if (typeof t.starred !== 'boolean') t.starred = false
+          })
+      })
   }
 }
 

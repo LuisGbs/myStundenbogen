@@ -46,6 +46,7 @@ In der Cloud-Umgebung nutzt Playwright das vorinstallierte Chromium unter `/opt/
 - „Gehen um“ (`domain/endTimes.ts`): Pflichtpause einmal täglich ≥ 30 min am Stück (`MIN_BREAK_MINUTES`); Ziel = Arbeitszeit der Vorlage.
 - „Gerade aktiv“ (`domain/nowWorking.ts`) hat kein eigenes Datenfeld: aktiv = `blockRest` im laufenden Block.
 - Aufgaben (`Task`, Tabelle `tasks`, `domain/tasks.ts`): getrennt vom Stundentracking; `parentId` null = Aufgabe, sonst Stichpunkt (nur 2 Ebenen); Reihenfolge je Geschwistergruppe über `sortOrder`. Schreiben nur über `repo.ts` (`createTask`, `setTaskDone`, `deleteTask`/`restoreTasks`, `reorderTask`). Nicht im Rückgängig-Verlauf (dafür „Rückgängig“-Toast).
+- Aufgaben als Text (`domain/taskText.ts`): Markdown-Format `# Projekt` / `- [ ] Aufgabe` / eingerückt Stichpunkt / `!!` = ★ / `> Notiz`. Parser ist tolerant und meldet Unbekanntes mit Zeilennummer; `formatTaskText` → `parseTaskText` muss verlustfrei bleiben (Test). `llmPrompt` hängt die aktiven Projekte an – Formatänderungen dort und im Info-Dialog (`TaskTransferDialogs.tsx`) mitziehen. Import nur über `importTasks` (eine Transaktion, Rückgängig über `undoTaskImport`).
 - Verteilung (`domain/allocation.ts`), in dieser Reihenfolge:
   1. feste Dauern und Prozentwerte; `blockRest` bekommt, was in seinem Block neben allen festen Zeilen frei ist
   2. Rest-Zeilen teilen sich den Rest; ohne Rest-Zeile wird optional proportional aufgefüllt

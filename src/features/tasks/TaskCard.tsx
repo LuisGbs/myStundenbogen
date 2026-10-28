@@ -5,7 +5,7 @@ import { Icon } from '../../components/Icon'
 import { CommitInput } from '../../components/inputs'
 import { SortGrip } from '../../components/SortGrip'
 import { useSortDrag } from '../../components/useSortDrag'
-import { createTask, reorderTask, updateTask } from '../../storage/repo'
+import { createTask, reorderTask, setTaskStarred, updateTask } from '../../storage/repo'
 
 interface Props {
   node: TaskNode
@@ -37,7 +37,7 @@ export function TaskCard({ node, grip, onToggle, onDelete }: Props) {
 
   return (
     <li
-      className={`task-card${task.done ? ' is-done' : ''} ${grip?.className ?? ''}`}
+      className={`task-card${task.done ? ' is-done' : ''}${task.starred && !task.done ? ' is-starred' : ''} ${grip?.className ?? ''}`}
       data-sort-id={task.id}
       data-testid="task-card"
     >
@@ -60,6 +60,18 @@ export function TaskCard({ node, grip, onToggle, onDelete }: Props) {
             return text.trim()
           }}
         />
+        {!task.done && (
+          <button
+            type="button"
+            className={`icon-btn icon-btn--subtle task-star${task.starred ? ' is-starred' : ''}`}
+            aria-label={`${task.title || 'Aufgabe'} als wichtig markieren`}
+            aria-pressed={task.starred}
+            title={task.starred ? 'Wichtig – steht oben (nochmal klicken zum Entfernen)' : 'Als wichtig markieren (steht dann oben)'}
+            onClick={() => void setTaskStarred(task.id, !task.starred)}
+          >
+            <Icon name="star" />
+          </button>
+        )}
         {total > 0 && (
           <span className={`badge${done === total ? ' badge--ok' : ' badge--muted'}`} data-testid="task-progress">
             {done}/{total}

@@ -6,8 +6,11 @@ import { useSortDrag } from '../../components/useSortDrag'
 import { useLocalPreference } from '../../lib/browser'
 import { href } from '../../lib/router'
 import { useProjects, useTasks } from '../../storage/hooks'
-import { createTask, reorderTask } from '../../storage/repo'
+import { Icon } from '../../components/Icon'
+import { createTask, reorderTask, undoTaskImport, type TaskImportResult } from '../../storage/repo'
+import { StarMark } from './StarMark'
 import { TaskCard } from './TaskCard'
+import { ExportTasksDialog, ImportTasksDialog, TaskFormatInfoDialog } from './TaskTransferDialogs'
 import { useTaskActions } from './useTaskActions'
 import './tasks.css'
 
@@ -18,7 +21,17 @@ export function TasksPage({ projectId }: { projectId: string | null }) {
   const [showInactive, setShowInactive] = useLocalPreference('tasks.showInactive', false)
   const [toast, showToast] = useToast()
   const actions = useTaskActions(tasks ?? [], showToast)
+  const [dialog, setDialog] = useState<'import' | 'export' | 'info' | null>(null)
   if (!projects || !tasks) return null
+
+  const imported = (result: TaskImportResult) => {
+    setDialog(null)
+    const extra = result.projectIds.length ? `, ${result.projectIds.length} neue Projekte` : ''
+    showToast(`${result.taskCount} Aufgaben importiert${extra}`, {
+      label: 'Rückgängig',
+      onClick: () => void undoTaskImport(result),
+    })
+  }
 
   const counts = openTaskCounts(tasks)
   const inactiveCount = projects.filter((p) => !p.active).length
@@ -55,6 +68,23 @@ export function TasksPage({ projectId }: { projectId: string | null }) {
             Noch keine Projekte. <a href={href.projects()}>Projekte anlegen</a>
           </p>
         )}
+        <div className="tasks-nav__tools">
+          <button type="button" className="btn btn--ghost btn--small" onClick={() => setDialog('import')}>
+            <Icon name="upload" /> Importieren …
+          </button>
+          <button type="button" className="btn btn--ghost btn--small" onClick={() => setDialog('export')}>
+            <Icon name="download" /> Exportieren …
+          </button>
+          <button
+            type="button"
+            className="icon-btn icon-btn--subtle"
+            aria-label="Format & LLM-Hilfe"
+            title="Format & LLM-Hilfe: so übernimmst du deine bisherige ToDo-Liste"
+            onClick={() => setDialog('info')}
+          >
+            <Icon name="info" />
+          </button>
+        </div>
       </nav>
 
       <div className="tasks-main">
@@ -66,6 +96,32 @@ export function TasksPage({ projectId }: { projectId: string | null }) {
           <Overview projects={visible} tasks={tasks} actions={actions} />
         )}
       </div>
+      {dialog === 'import' && (
+        <ImportTasksDialog
+          projects={projects}
+          tasks={tasks}
+          onClose={() => setDialog(null)}
+          onImported={imported}
+          onShowInfo={() => setDialog('info')}
+        />
+      )}
+      {dialog === 'export' && (
+        <ExportTasksDialog
+          projects={projects}
+          tasks={tasks}
+          projectId={project?.id ?? null}
+          onClose={() => setDialog(null)}
+          onMessage={showToast}
+        />
+      )}
+      {dialog === 'info' && (
+        <TaskFormatInfoDialog
+          projects={projects}
+          onClose={() => setDialog(null)}
+          onMessage={showToast}
+          onOpenImport={() => setDialog('import')}
+        />
+      )}
       {toast}
     </div>
   )
@@ -174,6 +230,7 @@ function Overview({ projects, tasks, actions }: { projects: Project[]; tasks: Ta
                       aria-label={`${task.title} erledigt`}
                       onChange={() => actions.toggle(task, true)}
                     />
+                    {task.starred && <StarMark />}
                     <span>{task.title || 'Aufgabe'}</span>
                     {total > 0 && (
                       <span className="badge badge--muted">

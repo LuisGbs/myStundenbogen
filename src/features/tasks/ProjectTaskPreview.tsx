@@ -5,6 +5,7 @@ import { useToast } from '../../components/Toast'
 import { href } from '../../lib/router'
 import { useTasks } from '../../storage/hooks'
 import { createTask } from '../../storage/repo'
+import { StarMark } from './StarMark'
 import { useTaskActions } from './useTaskActions'
 import './tasks.css'
 
@@ -40,6 +41,7 @@ export function ProjectTaskPreview({ project }: { project: Project }) {
                   aria-label={`${task.title} erledigt`}
                   onChange={() => actions.toggle(task, true)}
                 />
+                {task.starred && <StarMark />}
                 <span>{task.title || 'Aufgabe'}</span>
               </label>
               {openItems.length > 0 && (

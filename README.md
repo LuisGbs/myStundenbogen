@@ -38,6 +38,18 @@ Persönliche Web-App, um jeden Tag schnell festzuhalten, **wie lange** gearbeite
 - **Rückgängig / Wiederholen** für alle Änderungen an Tagen: Knöpfe ↶ ↷ oben rechts oder **Strg+Z** / **Strg+Y** (bzw. Strg+Shift+Z). Gilt, solange die Seite offen ist.
 - **Projekte** anlegen, umbenennen, per Griff ≡ sortieren (ziehen oder ↑/↓), aktivieren/deaktivieren; Tätigkeitsarten ebenso. Inaktive bleiben in alten Monaten sichtbar.
 - **Aufgaben (eigener Reiter, getrennt von den Stunden):** je Projekt Aufgaben mit Stichpunkten (Checkliste). Enter legt direkt den nächsten Stichpunkt an, Griff ≡ sortiert, Fortschritt „2/5“, Notiz je Aufgabe, Erledigtes eingeklappt, Löschen mit „Rückgängig“. „Alle“ zeigt die offenen Aufgaben aller Projekte. Läuft am Tag ein Projekt („Gerade“), stehen dessen offene Punkte direkt darunter – abhakbar, neue schnell notierbar. Aufgaben sind Teil der Sicherung.
+- **Wichtig ★ und Import/Export von Aufgaben:** ★ markiert eine Aufgabe als wichtig – sie steht dann oben. Aufgaben lassen sich als einfacher Markdown-Text exportieren (kopieren oder als `.md` speichern) und importieren (einfügen oder Datei wählen, mit Vorschau, ohne Doppelte, mit „Rückgängig“). Format:
+
+  ```
+  # Projektname (Projektnummer optional)
+  - [ ] Aufgabe
+    - [ ] Stichpunkt
+    - [x] erledigter Stichpunkt
+  - [ ] !! wichtige Aufgabe
+    > Notiz
+  ```
+
+  Der Info-Knopf ⓘ erklärt das Format und kopiert einen fertigen Text für ein LLM (ChatGPT, Claude, Copilot …) – mit der eigenen Projektliste automatisch angehängt. Darunter die alte ToDo-Liste einfügen, die Antwort des LLM in den Import kopieren.
 - **Projektliste teilen**
   - „Exportieren …“ speichert ausgewählte Projekte (Name, Nummer, Farbe) und die Tätigkeitsarten – ohne Stunden und Tage – z.B. für Kollegen.
   - „Importieren …“ liest so eine Liste ein. Man hakt an, was übernommen wird; schon vorhandene Projekte (gleiche Nummer oder gleicher Name) sind abgewählt.

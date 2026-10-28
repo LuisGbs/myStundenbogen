@@ -9,6 +9,7 @@ const task = (id: string, projectId: string, parentId: string | null, sortOrder:
   title: id,
   note: '',
   done,
+  starred: false,
   doneAt: done ? '2026-10-28' : null,
   sortOrder,
   createdAt: '',
@@ -31,6 +32,11 @@ describe('Aufgaben', () => {
       ['b', []],
     ])
     expect(done.map((n) => n.task.id)).toEqual(['erledigt'])
+  })
+
+  it('markierte (★) Aufgaben stehen oben, sonst eigene Reihenfolge', () => {
+    const withStar = tasks.map((t) => (t.id === 'b' ? { ...t, starred: true } : t))
+    expect(taskTree(withStar, 'epis').open.map((n) => n.task.id)).toEqual(['b', 'a'])
   })
 
   it('Fortschritt und offene Aufgaben je Projekt (Stichpunkte zählen nicht)', () => {

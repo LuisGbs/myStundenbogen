@@ -2,6 +2,7 @@ import 'fake-indexeddb/auto'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from './db'
 import { buildProjectList } from '../domain/projectTransfer'
+import { parseTaskText, planTaskImport } from '../domain/taskText'
 import {
   collectBackup,
   ImportError,
@@ -19,6 +20,9 @@ import {
   reorderTask,
   restoreTasks,
   setTaskDone,
+  setTaskStarred,
+  importTasks,
+  undoTaskImport,
   importProjectList,
   reorderActivityType,
   reorderProject,
@@ -281,5 +285,74 @@ describe('Aufgaben', () => {
       JSON.stringify({ app: 'stundenbogen', schemaVersion: 6, data: { projects: [], activityTypes: [], days: [] } }),
     )
     expect(file.data.tasks).toEqual([])
+  })
+
+  it('★ markieren; Sicherung von Stand 7 bekommt starred = false', async () => {
+    const p = await createProject({ name: 'Epis' })
+    const a = await createTask({ projectId: p.id, parentId: null, title: 'A' })
+    expect(a.starred).toBe(false)
+    await setTaskStarred(a.id, true)
+    expect((await db.tasks.get(a.id))?.starred).toBe(true)
+
+    const file = parseBackup(
+      JSON.stringify({
+        app: 'stundenbogen',
+        schemaVersion: 7,
+        data: { projects: [], activityTypes: [], days: [], tasks: [{ id: 't', projectId: 'p', title: 'Alt' }] },
+      }),
+    )
+    expect(file.data.tasks[0].starred).toBe(false)
+  })
+
+  it('Datenbank v8 → v9 ergänzt starred', async () => {
+    const { default: Dexie } = await import('dexie')
+    const { StundenbogenDB } = await import('./db')
+    const old = new Dexie('upgrade-v9')
+    old.version(8).stores({
+      projects: 'id, sortOrder',
+      activityTypes: 'id, sortOrder',
+      days: 'date',
+      settings: 'id',
+      meta: 'key',
+      tasks: 'id, projectId, parentId, sortOrder',
+    })
+    await old.table('tasks').put({ id: 't', projectId: 'p', parentId: null, title: 'Alt', sortOrder: 0 })
+    old.close()
+    const upgraded = new StundenbogenDB('upgrade-v9')
+    expect((await upgraded.tasks.get('t'))?.starred).toBe(false)
+    upgraded.close()
+  })
+
+  it('Text-Import: hinten anhängen, neues Projekt, Stichpunkte; Rückgängig entfernt genau das', async () => {
+    const p = await createProject({ name: 'Epis' })
+    await createTask({ projectId: p.id, parentId: null, title: 'Schon da' })
+    const projects = await db.projects.toArray()
+    const { sections } = parseTaskText(
+      '# Epis\n- [ ] !! Neu\n  - [x] Teil\n  > Notiz\n# Fremd\n- [x] Fertig\n# fremd\n- [ ] Auch fremd',
+      projects,
+    )
+    const groups = planTaskImport(
+      sections,
+      [{ kind: 'project', projectId: p.id }, { kind: 'new', name: 'Fremd' }, { kind: 'new', name: 'fremd' }],
+      await db.tasks.toArray(),
+    )
+    const result = await importTasks(groups, '2026-10-28')
+    expect(result.taskCount).toBe(3)
+    expect(result.projectIds).toHaveLength(1)
+
+    const epis = await db.tasks.where('projectId').equals(p.id).toArray()
+    const neu = epis.find((t) => t.title === 'Neu')!
+    expect(neu).toMatchObject({ starred: true, note: 'Notiz', sortOrder: 1, done: false })
+    expect(epis.find((t) => t.parentId === neu.id)).toMatchObject({ title: 'Teil', done: true, doneAt: '2026-10-28' })
+    const fremd = await db.tasks.where('projectId').equals(result.projectIds[0]).sortBy('sortOrder')
+    expect(fremd.map((t) => [t.title, t.sortOrder])).toEqual([
+      ['Fertig', 0],
+      ['Auch fremd', 1],
+    ])
+    expect((await db.projects.get(result.projectIds[0]))?.name).toBe('Fremd')
+
+    await undoTaskImport(result)
+    expect((await db.tasks.toArray()).map((t) => t.title)).toEqual(['Schon da'])
+    expect(await db.projects.count()).toBe(1)
   })
 })

@@ -6,6 +6,7 @@ import { newId } from '../domain/id'
 import { reorderIds } from '../domain/order'
 import type { SharedActivityType, SharedProject } from '../domain/projectTransfer'
 import { insertAfter } from '../domain/tasks'
+import type { ImportGroup } from '../domain/taskText'
 import type { ActivityType, Day, ISODate, Project, Settings, Task } from '../domain/types'
 import { db } from './db'
 import { recordDayChange } from './history'
@@ -238,6 +239,7 @@ export async function createTask(
       title: input.title.trim(),
       note: '',
       done: false,
+      starred: false,
       doneAt: null,
       sortOrder: siblings.length,
       createdAt: new Date().toISOString(),
@@ -256,6 +258,11 @@ export async function updateTask(id: string, patch: Partial<Pick<Task, 'title' |
 /** Abhaken bzw. wieder öffnen (`today` = Tag des Abhakens). */
 export async function setTaskDone(id: string, done: boolean, today: ISODate): Promise<void> {
   await db.tasks.update(id, { done, doneAt: done ? today : null })
+}
+
+/** ★ wichtig / nicht mehr wichtig. */
+export async function setTaskStarred(id: string, starred: boolean): Promise<void> {
+  await db.tasks.update(id, { starred })
 }
 
 /** Löscht eine Aufgabe samt Stichpunkten; gibt die gelöschten Einträge zurück (für „Rückgängig“). */
@@ -283,6 +290,104 @@ export async function reorderTask(id: string, beforeId: string | null): Promise<
     const siblings = await siblingsOf(task.projectId, task.parentId)
     const byId = new Map(siblings.map((t) => [t.id, t]))
     await renumber(reorderIds(siblings.map((t) => t.id), id, beforeId), byId)
+  })
+}
+
+/** Was ein Text-Import angelegt hat – für „Rückgängig“. */
+export interface TaskImportResult {
+  taskIds: string[]
+  projectIds: string[]
+  /** Anzahl neuer Aufgaben (ohne Stichpunkte) */
+  taskCount: number
+}
+
+/**
+ * Legt die geplanten Aufgaben samt Stichpunkten an (hinten im Projekt, eine
+ * Transaktion). Ziele „neues Projekt“ mit gleichem Namen teilen sich ein Projekt.
+ */
+export async function importTasks(groups: ImportGroup[], today: ISODate): Promise<TaskImportResult> {
+  return db.transaction('rw', db.projects, db.tasks, async () => {
+    const result: TaskImportResult = { taskIds: [], projectIds: [], taskCount: 0 }
+    const colors = (await db.projects.toArray()).map((p) => p.color)
+    let projectOrder = await nextSortOrder(db.projects)
+    const created = new Map<string, string>()
+    const now = new Date().toISOString()
+    const rows: Task[] = []
+
+    const projectFor = async (target: ImportGroup['target']): Promise<string | null> => {
+      if (target.kind === 'project') return target.projectId
+      if (target.kind === 'skip') return null
+      const key = target.name.trim().toLocaleLowerCase('de')
+      const known = created.get(key)
+      if (known) return known
+      const project: Project = {
+        id: newId(),
+        name: target.name.trim(),
+        code: '',
+        color: nextProjectColor(colors),
+        active: true,
+        sortOrder: projectOrder++,
+        createdAt: now,
+      }
+      colors.push(project.color)
+      await db.projects.add(project)
+      created.set(key, project.id)
+      result.projectIds.push(project.id)
+      return project.id
+    }
+
+    const nextOrder = new Map<string, number>()
+    for (const group of groups) {
+      if (group.tasks.length === 0) continue
+      const projectId = await projectFor(group.target)
+      if (!projectId) continue
+      if (!nextOrder.has(projectId)) nextOrder.set(projectId, (await siblingsOf(projectId, null)).length)
+      for (const t of group.tasks) {
+        const order = nextOrder.get(projectId)!
+        nextOrder.set(projectId, order + 1)
+        const task: Task = {
+          id: newId(),
+          projectId,
+          parentId: null,
+          title: t.title,
+          note: t.note,
+          done: t.done,
+          starred: t.starred,
+          doneAt: t.done ? today : null,
+          sortOrder: order,
+          createdAt: now,
+        }
+        rows.push(task)
+        result.taskCount++
+        t.items.forEach((item, i) =>
+          rows.push({
+            id: newId(),
+            projectId,
+            parentId: task.id,
+            title: item.title,
+            note: '',
+            done: item.done,
+            starred: false,
+            doneAt: item.done ? today : null,
+            sortOrder: i,
+            createdAt: now,
+          }),
+        )
+      }
+    }
+    await db.tasks.bulkAdd(rows)
+    result.taskIds = rows.map((r) => r.id)
+    return result
+  })
+}
+
+/** Macht einen Import rückgängig: genau diese Einträge, neu angelegte Projekte nur, wenn unbenutzt. */
+export async function undoTaskImport(result: TaskImportResult): Promise<void> {
+  await db.transaction('rw', [db.projects, db.days, db.settings, db.tasks], async () => {
+    await db.tasks.bulkDelete(result.taskIds)
+    for (const id of result.projectIds) {
+      if ((await db.tasks.where('projectId').equals(id).count()) === 0) await deleteProject(id)
+    }
   })
 }
 

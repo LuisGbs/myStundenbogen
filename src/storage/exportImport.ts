@@ -11,7 +11,7 @@ import { defaultSettings } from './seed'
  * Version des Sicherungsformats. Bei jeder Änderung am Datenmodell erhöhen und
  * in MIGRATIONS eine Funktion „von Version n auf n+1“ ergänzen.
  */
-export const SCHEMA_VERSION = 7
+export const SCHEMA_VERSION = 8
 
 const MIGRATIONS: Record<number, (data: Record<string, unknown>) => Record<string, unknown>> = {
   // 1 → 2: Allocation.blockId ist neu und optional – alte Zeilen bleiben „frei verteilt“.
@@ -33,6 +33,8 @@ const MIGRATIONS: Record<number, (data: Record<string, unknown>) => Record<strin
   5: (data) => data,
   // 6 → 7: Aufgaben (Aufgaben-Reiter) – ältere Sicherungen haben keine.
   6: (data) => ({ ...data, tasks: Array.isArray(data.tasks) ? data.tasks : [] }),
+  // 7 → 8: Task.starred (★) – ergänzt parseBackup über den Standardwert false.
+  7: (data) => data,
 }
 
 export interface BackupData {
@@ -124,7 +126,7 @@ export function parseBackup(text: string): BackupFile {
     if (typeof t.id !== 'string' || typeof t.projectId !== 'string' || typeof t.title !== 'string') {
       throw new ImportError('Ungültige Aufgabe in der Sicherung.')
     }
-    return { parentId: null, note: '', done: false, doneAt: null, sortOrder: 0, createdAt: '', ...t } as Task
+    return { parentId: null, note: '', done: false, starred: false, doneAt: null, sortOrder: 0, createdAt: '', ...t } as Task
   })
 
   return {
