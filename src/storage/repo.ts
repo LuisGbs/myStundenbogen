@@ -5,7 +5,8 @@ import { emptyDay, isEmptyDay } from '../domain/day'
 import { newId } from '../domain/id'
 import { reorderIds } from '../domain/order'
 import type { SharedActivityType, SharedProject } from '../domain/projectTransfer'
-import type { ActivityType, Day, ISODate, Project, Settings } from '../domain/types'
+import { insertAfter } from '../domain/tasks'
+import type { ActivityType, Day, ISODate, Project, Settings, Task } from '../domain/types'
 import { db } from './db'
 import { recordDayChange } from './history'
 
@@ -73,11 +74,13 @@ export function isProjectInUse(id: string): Promise<boolean> {
   return isReferenced((d) => d.allocations.some((a) => a.projectId === id))
 }
 
-/** Löscht nur unbenutzte Projekte. Gibt false zurück, wenn es Buchungen gibt. */
+/** Löscht nur unbenutzte Projekte (samt ihren Aufgaben). Gibt false zurück, wenn es Buchungen gibt. */
 export async function deleteProject(id: string): Promise<boolean> {
-  return db.transaction('rw', db.projects, db.days, db.settings, async () => {
+  return db.transaction('rw', [db.projects, db.days, db.settings, db.tasks], async () => {
     if (await isProjectInUse(id)) return false
     await db.projects.delete(id)
+    // Aufgaben des Projekts gehen mit (die Oberfläche fragt vorher nach)
+    await db.tasks.where('projectId').equals(id).delete()
     const settings = await db.settings.get('settings')
     if (settings?.defaultFill?.projectId === id) await db.settings.update('settings', { defaultFill: null })
     return true
@@ -207,4 +210,82 @@ export async function changeSettings(fn: (current: Settings) => Partial<Omit<Set
     const current = await db.settings.get('settings')
     if (current) await db.settings.update('settings', fn(current))
   })
+}
+
+// ---------- Aufgaben (Aufgaben-Reiter, getrennt vom Stundentracking) ----------
+
+/** Geschwister in ihrer Reihenfolge: gleiche Aufgabe bzw. (parentId null) gleiches Projekt. */
+async function siblingsOf(projectId: string, parentId: string | null): Promise<Task[]> {
+  const all = await db.tasks.where('projectId').equals(projectId).toArray()
+  return all.filter((t) => t.parentId === parentId).sort((a, b) => a.sortOrder - b.sortOrder)
+}
+
+async function renumber(order: string[], byId: Map<string, Task>): Promise<void> {
+  await db.tasks.bulkPut(order.map((id, i) => ({ ...byId.get(id)!, sortOrder: i })))
+}
+
+/** Neue Aufgabe (parentId null) bzw. neuer Stichpunkt – hinter `afterId` oder am Ende. */
+export async function createTask(
+  input: { projectId: string; parentId: string | null; title: string },
+  afterId: string | null = null,
+): Promise<Task> {
+  return db.transaction('rw', db.tasks, async () => {
+    const siblings = await siblingsOf(input.projectId, input.parentId)
+    const task: Task = {
+      id: newId(),
+      projectId: input.projectId,
+      parentId: input.parentId,
+      title: input.title.trim(),
+      note: '',
+      done: false,
+      doneAt: null,
+      sortOrder: siblings.length,
+      createdAt: new Date().toISOString(),
+    }
+    const byId = new Map(siblings.map((t) => [t.id, t]))
+    byId.set(task.id, task)
+    await renumber(insertAfter(siblings.map((t) => t.id), task.id, afterId), byId)
+    return task
+  })
+}
+
+export async function updateTask(id: string, patch: Partial<Pick<Task, 'title' | 'note'>>): Promise<void> {
+  await db.tasks.update(id, patch)
+}
+
+/** Abhaken bzw. wieder öffnen (`today` = Tag des Abhakens). */
+export async function setTaskDone(id: string, done: boolean, today: ISODate): Promise<void> {
+  await db.tasks.update(id, { done, doneAt: done ? today : null })
+}
+
+/** Löscht eine Aufgabe samt Stichpunkten; gibt die gelöschten Einträge zurück (für „Rückgängig“). */
+export async function deleteTask(id: string): Promise<Task[]> {
+  return db.transaction('rw', db.tasks, async () => {
+    const task = await db.tasks.get(id)
+    if (!task) return []
+    const items = task.parentId === null ? (await siblingsOf(task.projectId, id)) : []
+    const removed = [task, ...items]
+    await db.tasks.bulkDelete(removed.map((t) => t.id))
+    return removed
+  })
+}
+
+/** Stellt gelöschte Einträge wieder her (Rückgängig nach dem Löschen). */
+export async function restoreTasks(tasks: Task[]): Promise<void> {
+  await db.tasks.bulkPut(tasks)
+}
+
+/** Zieht einen Eintrag vor `beforeId` (null = ans Ende) unter seinen Geschwistern. */
+export async function reorderTask(id: string, beforeId: string | null): Promise<void> {
+  await db.transaction('rw', db.tasks, async () => {
+    const task = await db.tasks.get(id)
+    if (!task) return
+    const siblings = await siblingsOf(task.projectId, task.parentId)
+    const byId = new Map(siblings.map((t) => [t.id, t]))
+    await renumber(reorderIds(siblings.map((t) => t.id), id, beforeId), byId)
+  })
+}
+
+export async function countProjectTasks(projectId: string): Promise<number> {
+  return db.tasks.where('projectId').equals(projectId).filter((t) => t.parentId === null).count()
 }

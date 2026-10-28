@@ -6,6 +6,7 @@ import { clockIn } from '../../domain/plan'
 import type { ActivityType, Day, Project } from '../../domain/types'
 import { Icon } from '../../components/Icon'
 import { Segmented } from '../../components/Segmented'
+import { ProjectTaskPreview } from '../tasks/ProjectTaskPreview'
 import { useProjectsByRecency } from './useProjectsByRecency'
 
 interface Props {
@@ -107,6 +108,7 @@ export function NowWorking({ day, result, projects, activityTypes, onChange }: P
           )
         })}
       </div>
+      {activeProject && <ProjectTaskPreview project={activeProject} />}
     </section>
   )
 }

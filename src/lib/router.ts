@@ -10,6 +10,8 @@ export type Route =
   | { page: 'day'; date: ISODate }
   | { page: 'month'; month: YearMonth }
   | { page: 'projects' }
+  /** projectId null = Übersicht über alle Projekte */
+  | { page: 'tasks'; projectId: string | null }
   | { page: 'settings' }
 
 export function parseRoute(hash: string, today: ISODate = todayISO()): Route {
@@ -19,6 +21,8 @@ export function parseRoute(hash: string, today: ISODate = todayISO()): Route {
       return { page: 'month', month: isYearMonth(param) ? param : yearMonthOf(today) }
     case 'projekte':
       return { page: 'projects' }
+    case 'aufgaben':
+      return { page: 'tasks', projectId: param ? decodeURIComponent(param) : null }
     case 'einstellungen':
       return { page: 'settings' }
     default:
@@ -31,6 +35,7 @@ export const href = {
   day: (date: ISODate) => `#/tag/${date}`,
   month: (month?: YearMonth) => (month ? `#/monat/${month}` : '#/monat'),
   projects: () => '#/projekte',
+  tasks: (projectId?: string | null) => (projectId ? `#/aufgaben/${encodeURIComponent(projectId)}` : '#/aufgaben'),
   settings: () => '#/einstellungen',
 }
 

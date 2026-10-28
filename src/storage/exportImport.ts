@@ -2,7 +2,7 @@ import { isISODate } from '../domain/date'
 import { emptyDay } from '../domain/day'
 import { upgradeAllocationV5 } from '../domain/legacy'
 import type { ProjectListFile } from '../domain/projectTransfer'
-import type { ActivityType, Day, Project, Settings } from '../domain/types'
+import type { ActivityType, Day, Project, Settings, Task } from '../domain/types'
 import { db } from './db'
 import { clearHistory } from './history'
 import { defaultSettings } from './seed'
@@ -11,7 +11,7 @@ import { defaultSettings } from './seed'
  * Version des Sicherungsformats. Bei jeder Änderung am Datenmodell erhöhen und
  * in MIGRATIONS eine Funktion „von Version n auf n+1“ ergänzen.
  */
-export const SCHEMA_VERSION = 6
+export const SCHEMA_VERSION = 7
 
 const MIGRATIONS: Record<number, (data: Record<string, unknown>) => Record<string, unknown>> = {
   // 1 → 2: Allocation.blockId ist neu und optional – alte Zeilen bleiben „frei verteilt“.
@@ -31,6 +31,8 @@ const MIGRATIONS: Record<number, (data: Record<string, unknown>) => Record<strin
   }),
   // 5 → 6: TimeBlock.expectedEnd ist neu und optional.
   5: (data) => data,
+  // 6 → 7: Aufgaben (Aufgaben-Reiter) – ältere Sicherungen haben keine.
+  6: (data) => ({ ...data, tasks: Array.isArray(data.tasks) ? data.tasks : [] }),
 }
 
 export interface BackupData {
@@ -38,6 +40,7 @@ export interface BackupData {
   activityTypes: ActivityType[]
   days: Day[]
   settings: Settings
+  tasks: Task[]
 }
 
 export interface BackupFile {
@@ -50,7 +53,7 @@ export interface BackupFile {
 export class ImportError extends Error {}
 
 export async function collectBackup(): Promise<BackupFile> {
-  return db.transaction('r', db.projects, db.activityTypes, db.days, db.settings, async () => ({
+  return db.transaction('r', db.projects, db.activityTypes, db.days, db.settings, db.tasks, async () => ({
     app: 'stundenbogen' as const,
     schemaVersion: SCHEMA_VERSION,
     exportedAt: new Date().toISOString(),
@@ -59,6 +62,7 @@ export async function collectBackup(): Promise<BackupFile> {
       activityTypes: await db.activityTypes.orderBy('sortOrder').toArray(),
       days: await db.days.orderBy('date').toArray(),
       settings: (await db.settings.get('settings')) ?? defaultSettings(),
+      tasks: await db.tasks.orderBy('sortOrder').toArray(),
     },
   }))
 }
@@ -116,21 +120,28 @@ export function parseBackup(text: string): BackupFile {
     return { ...emptyDay(d.date), ...d } as Day
   })
   const settings = { ...defaultSettings(), ...(isRecord(data.settings) ? data.settings : {}), id: 'settings' } as Settings
+  const tasks = asArray(data.tasks ?? [], 'Aufgaben').map((t): Task => {
+    if (typeof t.id !== 'string' || typeof t.projectId !== 'string' || typeof t.title !== 'string') {
+      throw new ImportError('Ungültige Aufgabe in der Sicherung.')
+    }
+    return { parentId: null, note: '', done: false, doneAt: null, sortOrder: 0, createdAt: '', ...t } as Task
+  })
 
   return {
     app: 'stundenbogen',
     schemaVersion: SCHEMA_VERSION,
     exportedAt: typeof raw.exportedAt === 'string' ? raw.exportedAt : '',
-    data: { projects, activityTypes, days, settings },
+    data: { projects, activityTypes, days, settings, tasks },
   }
 }
 
 /** Ersetzt ALLE Daten durch den Inhalt der Sicherung. */
 export async function restoreBackup(file: BackupFile): Promise<void> {
   clearHistory()
-  const { projects, activityTypes, days, settings } = file.data
-  await db.transaction('rw', db.projects, db.activityTypes, db.days, db.settings, async () => {
-    await Promise.all([db.projects.clear(), db.activityTypes.clear(), db.days.clear(), db.settings.clear()])
+  const { projects, activityTypes, days, settings, tasks } = file.data
+  await db.transaction('rw', [db.projects, db.activityTypes, db.days, db.settings, db.tasks], async () => {
+    await Promise.all([db.projects.clear(), db.activityTypes.clear(), db.days.clear(), db.settings.clear(), db.tasks.clear()])
+    await db.tasks.bulkPut(tasks)
     await db.projects.bulkPut(projects)
     await db.activityTypes.bulkPut(activityTypes)
     await db.days.bulkPut(days)

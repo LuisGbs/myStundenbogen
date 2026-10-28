@@ -788,3 +788,7 @@ button.end-times__tile:focus-visible {
   color: var(--text-muted);
   font-size: 0.85rem;
 }
+
+.timeline-panel__tasks {
+  margin-left: auto;
+}

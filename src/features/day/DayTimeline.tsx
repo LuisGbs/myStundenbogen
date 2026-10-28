@@ -23,6 +23,9 @@ import { Icon } from '../../components/Icon'
 import { CommitInput } from '../../components/inputs'
 import { Segmented } from '../../components/Segmented'
 import { NoteInput } from './AllocationSection'
+import { openTaskCounts } from '../../domain/tasks'
+import { href } from '../../lib/router'
+import { useTasks } from '../../storage/hooks'
 import { useProjectsByRecency } from './useProjectsByRecency'
 
 interface Props {
@@ -105,6 +108,7 @@ const fullMessage = (block: TimelineBlock) => `Der Block ${block.label} ist scho
 
 export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, forecast, onChange }: Props) {
   const byRecency = useProjectsByRecency(day.date, projects)
+  const tasks = useTasks()
   const [chipDrag, setChipDrag] = useState<ChipDrag | null>(null)
   const chipDragRef = useRef<ChipDrag | null>(null)
   const [segmentDrag, setSegmentDrag] = useState<SegmentDrag | null>(null)
@@ -456,6 +460,7 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
           minutes={selected.mode === 'timeline' ? selected.value : (shownResult.minutes[selected.id] ?? 0)}
           maxMinutes={maxSegmentMinutes(selectedBlock, selected)}
           projectName={projectById.get(selected.projectId)?.name ?? '?'}
+          openTasks={openTaskCounts(tasks ?? []).get(selected.projectId) ?? 0}
           color={projectById.get(selected.projectId)?.color}
           activityTypes={activityTypes.filter((a) => a.active || a.id === selected.activityTypeId)}
           onActivity={(activityTypeId) =>
@@ -524,6 +529,7 @@ function SegmentPanel({
   minutes,
   maxMinutes,
   projectName,
+  openTasks,
   color,
   activityTypes,
   onActivity,
@@ -543,6 +549,8 @@ function SegmentPanel({
   minutes: Minutes
   maxMinutes: Minutes
   projectName: string
+  /** Offene Aufgaben des Projekts (Aufgaben-Reiter). */
+  openTasks: number
   color: string | undefined
   activityTypes: ActivityType[]
   onActivity: (activityTypeId: string) => void
@@ -636,6 +644,11 @@ function SegmentPanel({
         <button type="button" className="btn btn--small btn--ghost" onClick={onRemove}>
           <Icon name="trash" /> Entfernen
         </button>
+        {openTasks > 0 && (
+          <a className="small timeline-panel__tasks" href={href.tasks(allocation.projectId)} data-testid="panel-open-tasks">
+            {openTasks} offene Aufgabe{openTasks === 1 ? '' : 'n'} →
+          </a>
+        )}
       </div>
       <div className="timeline-panel__row timeline-panel__note">
         <NoteInput value={allocation.note} onCommit={onNote} />

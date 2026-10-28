@@ -4,6 +4,7 @@ import { DayPage } from './features/day/DayPage'
 import { MonthPage } from './features/month/MonthPage'
 import { ProjectsPage } from './features/projects/ProjectsPage'
 import { SettingsPage } from './features/settings/SettingsPage'
+import { TasksPage } from './features/tasks/TasksPage'
 import { Welcome } from './features/welcome/Welcome'
 import { href, useRoute, type Route } from './lib/router'
 import { connectFolder, pickFolder, reconnectFolder, writeBackupNow, type BackupState } from './storage/backup'
@@ -27,6 +28,7 @@ export default function App() {
           <NavLink route={route} page="day" to={href.today()} label="Tag" />
           <NavLink route={route} page="month" to={href.month()} label="Monat" />
           <NavLink route={route} page="projects" to={href.projects()} label="Projekte" />
+          <NavLink route={route} page="tasks" to={href.tasks()} label="Aufgaben" />
           <NavLink route={route} page="settings" to={href.settings()} label="Einstellungen" />
         </nav>
         <div className="topbar__end">
@@ -39,6 +41,7 @@ export default function App() {
         {route.page === 'day' && <DayPage key={route.date} date={route.date} />}
         {route.page === 'month' && <MonthPage month={route.month} />}
         {route.page === 'projects' && <ProjectsPage />}
+        {route.page === 'tasks' && <TasksPage projectId={route.projectId} />}
         {route.page === 'settings' && <SettingsPage />}
       </main>
     </div>
