@@ -10,6 +10,7 @@ import { pickTextFile, useLocalPreference } from '../../lib/browser'
 import { ImportError, parseProjectList } from '../../storage/exportImport'
 import { useActivityTypes, useProjects } from '../../storage/hooks'
 import {
+  countProjectTasks,
   createActivityType,
   createProject,
   deleteActivityType,
@@ -59,7 +60,9 @@ function ProjectsCard({ projects, activityTypes }: { projects: Project[]; activi
   }
 
   const remove = async (p: Project) => {
-    if (!confirm(`Projekt „${p.name}“ wirklich löschen?`)) return
+    const taskCount = await countProjectTasks(p.id)
+    const withTasks = taskCount > 0 ? ` Seine ${taskCount} Aufgabe${taskCount === 1 ? '' : 'n'} werden mit gelöscht.` : ''
+    if (!confirm(`Projekt „${p.name}“ wirklich löschen?${withTasks}`)) return
     const deleted = await deleteProject(p.id)
     if (!deleted) {
       alert(`„${p.name}“ hat bereits Buchungen und kann nicht gelöscht werden.\nDeaktiviere es stattdessen – dann verschwindet es aus der Auswahl, die Stunden bleiben erhalten.`)

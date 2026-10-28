@@ -37,6 +37,7 @@ Persönliche Web-App, um jeden Tag schnell festzuhalten, **wie lange** gearbeite
 - **Notiz pro Eintrag:** ✎ an jeder Zeile oder im Zeitleisten-Panel; in der Monatstabelle als Tooltip (Ecke markiert).
 - **Rückgängig / Wiederholen** für alle Änderungen an Tagen: Knöpfe ↶ ↷ oben rechts oder **Strg+Z** / **Strg+Y** (bzw. Strg+Shift+Z). Gilt, solange die Seite offen ist.
 - **Projekte** anlegen, umbenennen, per Griff ≡ sortieren (ziehen oder ↑/↓), aktivieren/deaktivieren; Tätigkeitsarten ebenso. Inaktive bleiben in alten Monaten sichtbar.
+- **Aufgaben (eigener Reiter, getrennt von den Stunden):** je Projekt Aufgaben mit Stichpunkten (Checkliste). Enter legt direkt den nächsten Stichpunkt an, Griff ≡ sortiert, Fortschritt „2/5“, Notiz je Aufgabe, Erledigtes eingeklappt, Löschen mit „Rückgängig“. „Alle“ zeigt die offenen Aufgaben aller Projekte. Läuft am Tag ein Projekt („Gerade“), stehen dessen offene Punkte direkt darunter – abhakbar, neue schnell notierbar. Aufgaben sind Teil der Sicherung.
 - **Projektliste teilen**
   - „Exportieren …“ speichert ausgewählte Projekte (Name, Nummer, Farbe) und die Tätigkeitsarten – ohne Stunden und Tage – z.B. für Kollegen.
   - „Importieren …“ liest so eine Liste ein. Man hakt an, was übernommen wird; schon vorhandene Projekte (gleiche Nummer oder gleicher Name) sind abgewählt.

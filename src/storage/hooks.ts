@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useSyncExternalStore } from 'react'
-import type { ActivityType, Day, ISODate, Project, Settings } from '../domain/types'
+import type { ActivityType, Day, ISODate, Project, Settings, Task } from '../domain/types'
 import { getBackupState, subscribeBackup, type BackupState } from './backup'
 import { db } from './db'
 import { getHistoryState, subscribeHistory, type HistoryState } from './history'
@@ -16,6 +16,11 @@ export function useSettings(): Settings | null | undefined {
 
 export function useProjects(): Project[] | undefined {
   return useLiveQuery(() => db.projects.orderBy('sortOrder').toArray())
+}
+
+/** Alle Aufgaben und Stichpunkte (klein genug, um sie komplett zu laden). */
+export function useTasks(): Task[] | undefined {
+  return useLiveQuery(() => db.tasks.orderBy('sortOrder').toArray())
 }
 
 export function useActivityTypes(): ActivityType[] | undefined {

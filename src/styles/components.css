@@ -716,3 +716,15 @@ select.input {
 [data-sort-list].is-drop-end > [data-sort-id]:last-child {
   box-shadow: 0 3px 0 var(--accent);
 }
+
+.toast__action {
+  margin-left: 0.75rem;
+  padding: 0.15rem 0.5rem;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-small);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}

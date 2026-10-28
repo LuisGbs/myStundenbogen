@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie'
-import type { ActivityType, Day, Project, Settings } from '../domain/types'
+import type { ActivityType, Day, Project, Settings, Task } from '../domain/types'
 import { upgradeAllocationV5 } from '../domain/legacy'
 import { TEMPLATE_8H18, TEMPLATE_9H } from '../domain/plan'
 import { DEFAULT_WEEKLY_MAX } from '../domain/target'
@@ -22,6 +22,7 @@ export class StundenbogenDB extends Dexie {
   activityTypes!: Table<ActivityType, string>
   days!: Table<Day, string>
   settings!: Table<Settings, string>
+  tasks!: Table<Task, string>
   /** Technische Infos (z.B. Sicherungsordner), nicht Teil des Exports. */
   meta!: Table<MetaEntry, string>
 
@@ -88,10 +89,12 @@ export class StundenbogenDB extends Dexie {
       })
     // v7: TimeBlock.expectedEnd („voraussichtlich gehen um …“) – optional, nichts umzustellen.
     this.version(7).stores({})
+    // v8: Aufgaben-Reiter – neue Tabelle für Aufgaben und Stichpunkte.
+    this.version(8).stores({ tasks: 'id, projectId, parentId, sortOrder' })
   }
 }
 
 export const db = new StundenbogenDB()
 
 /** Tabellen mit Nutzdaten (alles, was gesichert/exportiert wird). */
-export const dataTables = () => [db.projects, db.activityTypes, db.days, db.settings]
+export const dataTables = () => [db.projects, db.activityTypes, db.days, db.settings, db.tasks]

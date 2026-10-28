@@ -11,8 +11,14 @@ import {
   serializeBackup,
 } from './exportImport'
 import {
+  countProjectTasks,
   createProject,
+  createTask,
   deleteProject,
+  deleteTask,
+  reorderTask,
+  restoreTasks,
+  setTaskDone,
   importProjectList,
   reorderActivityType,
   reorderProject,
@@ -107,7 +113,10 @@ describe('Export/Import', () => {
       blocks: [{ id: 'b1', start: '07:45', end: '12:00' }],
       allocations: [{ id: 'x', projectId: p.id, activityTypeId: 'buero', mode: 'percent', value: 50, note: 'Notiz' }],
     }))
+    const t = await createTask({ projectId: p.id, parentId: null, title: 'Pläne prüfen' })
+    await createTask({ projectId: p.id, parentId: t.id, title: 'Erdgeschoss' })
     const before = await collectBackup()
+    expect(before.data.tasks).toHaveLength(2)
     const text = serializeBackup(before)
 
     await Promise.all(db.tables.map((t) => t.clear()))
@@ -222,5 +231,55 @@ describe('Lineares Blockmodell (Datenstand 5 / Dexie v6)', () => {
     expect(day?.allocations.map((a) => a.mode)).toEqual(expected)
     expect(day?.allocations[0].blockId).toBe('b1')
     upgraded.close()
+  })
+})
+
+describe('Aufgaben', () => {
+  const titles = async (parentId: string | null) =>
+    (await db.tasks.orderBy('sortOrder').toArray()).filter((t) => t.parentId === parentId).map((t) => t.title)
+
+  it('anlegen (auch direkt hinter einem Stichpunkt), abhaken, sortieren', async () => {
+    const p = await createProject({ name: 'Epis' })
+    const a = await createTask({ projectId: p.id, parentId: null, title: ' Pläne prüfen ' })
+    const b = await createTask({ projectId: p.id, parentId: null, title: 'Mail an X' })
+    expect(a.title).toBe('Pläne prüfen')
+    const s1 = await createTask({ projectId: p.id, parentId: a.id, title: 'EG' })
+    await createTask({ projectId: p.id, parentId: a.id, title: 'OG' })
+    await createTask({ projectId: p.id, parentId: a.id, title: 'UG' }, s1.id)
+    expect(await titles(a.id)).toEqual(['EG', 'UG', 'OG'])
+
+    await setTaskDone(s1.id, true, '2026-10-28')
+    expect(await db.tasks.get(s1.id)).toMatchObject({ done: true, doneAt: '2026-10-28' })
+    await setTaskDone(s1.id, false, '2026-10-28')
+    expect(await db.tasks.get(s1.id)).toMatchObject({ done: false, doneAt: null })
+
+    await reorderTask(b.id, a.id)
+    expect(await titles(null)).toEqual(['Mail an X', 'Pläne prüfen'])
+  })
+
+  it('löschen nimmt Stichpunkte mit; Rückgängig stellt alles wieder her', async () => {
+    const p = await createProject({ name: 'Epis' })
+    const a = await createTask({ projectId: p.id, parentId: null, title: 'A' })
+    await createTask({ projectId: p.id, parentId: a.id, title: 'a1' })
+    const removed = await deleteTask(a.id)
+    expect(removed).toHaveLength(2)
+    expect(await db.tasks.count()).toBe(0)
+    await restoreTasks(removed)
+    expect(await db.tasks.count()).toBe(2)
+  })
+
+  it('Projekt löschen löscht seine Aufgaben mit', async () => {
+    const p = await createProject({ name: 'Weg' })
+    await createTask({ projectId: p.id, parentId: null, title: 'A' })
+    expect(await countProjectTasks(p.id)).toBe(1)
+    expect(await deleteProject(p.id)).toBe(true)
+    expect(await db.tasks.count()).toBe(0)
+  })
+
+  it('Sicherung von Stand 6 (ohne Aufgaben) lässt sich importieren', () => {
+    const file = parseBackup(
+      JSON.stringify({ app: 'stundenbogen', schemaVersion: 6, data: { projects: [], activityTypes: [], days: [] } }),
+    )
+    expect(file.data.tasks).toEqual([])
   })
 })

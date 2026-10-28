@@ -122,3 +122,22 @@ export interface Settings {
   /** Höchstarbeitszeit pro Woche (Mo–So), z.B. 45 h nach Arbeitsgesetz. */
   weeklyMaxMinutes: Minutes
 }
+
+/**
+ * Aufgabe bzw. Stichpunkt im Aufgaben-Reiter (getrennt vom Stundentracking).
+ * parentId null = Aufgabe eines Projekts, sonst Stichpunkt dieser Aufgabe (nur 2 Ebenen).
+ */
+export interface Task {
+  id: string
+  projectId: string
+  parentId: string | null
+  title: string
+  /** z.B. Ticket oder Link als Text */
+  note: string
+  done: boolean
+  /** Tag, an dem abgehakt wurde */
+  doneAt: ISODate | null
+  /** Reihenfolge unter Geschwistern (gleiches Projekt, gleiche Aufgabe) */
+  sortOrder: number
+  createdAt: string
+}
