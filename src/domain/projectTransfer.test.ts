@@ -11,13 +11,25 @@ const project = (name: string, code = '', active = true): Project => ({
   sortOrder: 0,
   createdAt: '',
 })
-const activity = (name: string, active = true): ActivityType => ({ id: name, name, active, sortOrder: 0 })
+const activity = (name: string, active = true): ActivityType => ({ id: name, projectId: null, name, code: '', active, sortOrder: 0 })
 
 describe('buildProjectList', () => {
-  it('enthält nur Name, Nummer, Farbe und aktive Tätigkeitsarten – keine IDs', () => {
-    const file = buildProjectList([project('Alpha', 'P-1')], [activity('Büro'), activity('Alt', false)])
-    expect(file.projects).toEqual([{ name: 'Alpha', code: 'P-1', color: '#2563eb' }])
-    expect(file.activityTypes).toEqual([{ name: 'Büro' }])
+  it('enthält nur Name, Nummer, Farbe und aktive Tätigkeiten je Projekt + Standardliste – keine IDs', () => {
+    const alpha = project('Alpha', 'P-1')
+    const file = buildProjectList(
+      [alpha],
+      [
+        activity('Büro'),
+        activity('Alt', false),
+        { ...activity('Engineering'), id: 'e', projectId: alpha.id, code: '10' },
+        { ...activity('Weg', false), id: 'w', projectId: alpha.id },
+      ],
+    )
+    expect(file.schemaVersion).toBe(2)
+    expect(file.projects).toEqual([
+      { name: 'Alpha', code: 'P-1', color: '#2563eb', activities: [{ name: 'Engineering', code: '10' }] },
+    ])
+    expect(file.activityTypes).toEqual([{ name: 'Büro', code: '' }])
     expect(JSON.stringify(file)).not.toContain('"id"')
   })
 })

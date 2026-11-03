@@ -14,7 +14,7 @@ Persönliche Web-App, um jeden Tag schnell festzuhalten, **wie lange** gearbeite
   - eine Zeile auf „Rest“ stellen
   - Rest auf ein Standardprojekt buchen
   - offene Zeit proportional auf alle Zeilen verteilen
-- **Projekt → Tätigkeitsart** (Büro / Meeting, erweiterbar). Jede Kombination ist ein eigener Eintrag.
+- **Projekt (Kostenstelle) → Tätigkeit (Unter-Kostenstelle)**: Jedes Projekt hat eigene Tätigkeiten mit Name und optionaler Nummer (z.B. Engineering 10, Abwicklung 20, Meeting). Neue Projekte starten mit einer Kopie der „Standardliste“. Jede Kombination ist ein eigener Eintrag; Monatstabelle und Excel haben die Spalte „Tätigkeit Nr.“.
 - **Monatstabelle**
   - Tage nach rechts, Projekte und Tätigkeiten nach unten, Summen, Hinweise auf offene Tage.
   - „Tabelle kopieren“ (direkt in Excel einfügen) und CSV-Export.
@@ -23,7 +23,7 @@ Persönliche Web-App, um jeden Tag schnell festzuhalten, **wie lange** gearbeite
 - **Zeitleiste** im Tag
   - Die Stempel-Blöcke erscheinen als Balken. Projekte zieht man direkt in einen Block; sie liegen dort lückenlos hintereinander.
   - Den rechten Rand eines Projekts ziehen (oder Pfeiltasten): Die folgenden Projekte rücken nach und behalten ihre Länge; länger geht nur, bis das letzte ans Blockende stößt.
-  - Klick auf ein Projekt: Dauer direkt eintragen (wird auf den Platz im Block begrenzt), Büro/Meeting, Entfernen.
+  - Klick auf ein Projekt: Dauer direkt eintragen (wird auf den Platz im Block begrenzt), Tätigkeit, Entfernen.
   - **Ganze Segmente ziehen**: innerhalb eines Blocks umsortieren oder in einen anderen Block (Einfügemarke zeigt die Stelle; zu wenig Platz → Dauer wird begrenzt).
   - **Jede Zeile steht in einem Block**, in der Reihenfolge der Liste – egal ob h:mm, %, Rest, Block-Rest oder Zeitleiste. Zeilen ohne festen Block (neu hinzugefügt) kommen in den Block, in dem gerade Platz ist.
   - **Rest im Block** (im Panel oder Modus „Block-Rest“): bekommt, was in seinem Block neben allen anderen Zeilen (auch h:mm und %) frei ist, und wächst/schrumpft mit.
@@ -36,7 +36,7 @@ Persönliche Web-App, um jeden Tag schnell festzuhalten, **wie lange** gearbeite
 - **Geplanter Arbeitstag:** Ist an einem Werktag noch nichts gestempelt, steht die Vorlage (Standard 07:00–11:33 und 12:03–16:30 = 9:00, also +0:42 pro Tag, in den Einstellungen änderbar) grau als „geplant“ da. Man kann schon Projekte verteilen; jede nachgetragene Stempelzeit macht den Block echt, „Plan übernehmen“ alle auf einmal. Im Monat sind geplante Tage grau/kursiv mit „~“.
 - **Notiz pro Eintrag:** ✎ an jeder Zeile oder im Zeitleisten-Panel; in der Monatstabelle als Tooltip (Ecke markiert).
 - **Rückgängig / Wiederholen** für alle Änderungen an Tagen: Knöpfe ↶ ↷ oben rechts oder **Strg+Z** / **Strg+Y** (bzw. Strg+Shift+Z). Gilt, solange die Seite offen ist.
-- **Projekte** anlegen, umbenennen, per Griff ≡ sortieren (ziehen oder ↑/↓), aktivieren/deaktivieren; Tätigkeitsarten ebenso. Inaktive bleiben in alten Monaten sichtbar.
+- **Projekte** anlegen, umbenennen, per Griff ≡ sortieren (ziehen oder ↑/↓), aktivieren/deaktivieren; unter „Tätigkeiten“ je Projekt dessen Tätigkeiten (Name, Nr., sortieren, aktiv, löschen wenn unbenutzt – die letzte aktive bleibt). Inaktive bleiben in alten Monaten sichtbar.
 - **Aufgaben (eigener Reiter, getrennt von den Stunden):** je Projekt Aufgaben mit Stichpunkten (Checkliste). Enter legt direkt den nächsten Stichpunkt an, Griff ≡ sortiert, Fortschritt „2/5“, Notiz je Aufgabe, Erledigtes eingeklappt, Löschen mit „Rückgängig“. „Alle“ zeigt die offenen Aufgaben aller Projekte. Läuft am Tag ein Projekt („Gerade“), stehen dessen offene Punkte direkt darunter – abhakbar, neue schnell notierbar. Aufgaben sind Teil der Sicherung.
 - **Wichtig ★ und Import/Export von Aufgaben:** ★ markiert eine Aufgabe als wichtig – sie steht dann oben. Aufgaben lassen sich als einfacher Markdown-Text exportieren (kopieren oder als `.md` speichern) und importieren (einfügen oder Datei wählen, mit Vorschau, ohne Doppelte, mit „Rückgängig“). Format:
 
@@ -51,7 +51,7 @@ Persönliche Web-App, um jeden Tag schnell festzuhalten, **wie lange** gearbeite
 
   Der Info-Knopf ⓘ erklärt das Format und kopiert einen fertigen Text für ein LLM (ChatGPT, Claude, Copilot …) – mit der eigenen Projektliste automatisch angehängt. Darunter die alte ToDo-Liste einfügen, die Antwort des LLM in den Import kopieren.
 - **Projektliste teilen**
-  - „Exportieren …“ speichert ausgewählte Projekte (Name, Nummer, Farbe) und die Tätigkeitsarten – ohne Stunden und Tage – z.B. für Kollegen.
+  - „Exportieren …“ speichert ausgewählte Projekte (Name, Nummer, Farbe) samt ihren Tätigkeiten und die Standardliste – ohne Stunden und Tage. Ältere Dateien (ohne Tätigkeiten je Projekt) werden weiter gelesen – z.B. für Kollegen.
   - „Importieren …“ liest so eine Liste ein. Man hakt an, was übernommen wird; schon vorhandene Projekte (gleiche Nummer oder gleicher Name) sind abgewählt.
 
 Eingabeformate: `8:18`, `8,3` (Dezimalstunden), `8h18`, `90m`, `50%`, `rest`.

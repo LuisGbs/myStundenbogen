@@ -3,6 +3,7 @@ import { clockToMinutes, formatDuration, nowClock } from '../../domain/duration'
 import { newId } from '../../domain/id'
 import { activeAllocation, runningBlockId, startWorkingOn, stopWorking } from '../../domain/nowWorking'
 import { clockIn } from '../../domain/plan'
+import { activitiesOf, activityLabel, defaultActivityId } from '../../domain/activities'
 import type { ActivityType, Day, Project } from '../../domain/types'
 import { Icon } from '../../components/Icon'
 import { Segmented } from '../../components/Segmented'
@@ -31,13 +32,14 @@ export function NowWorking({ day, result, projects, activityTypes, onChange }: P
   const running = runningBlockId(day) !== null
   const active = activeAllocation(day)
   const activeProject = active && projects.find((p) => p.id === active.projectId)
-  const types = activityTypes.filter((a) => a.active || a.id === active?.activityTypeId)
-  const defaultTypeId = (activityTypes.find((a) => a.active) ?? activityTypes[0])?.id ?? ''
+  const types = active ? activitiesOf(active.projectId, activityTypes, active.activityTypeId) : []
+  // beim Wechsel die gleichnamige Tätigkeit im neuen Projekt (z.B. Meeting → Meeting)
+  const activeName = active ? activityTypes.find((a) => a.id === active.activityTypeId)?.name : undefined
 
   if (byRecency.length === 0) return null
 
   const start = (projectId: string) => {
-    const target = { projectId, activityTypeId: defaultTypeId }
+    const target = { projectId, activityTypeId: defaultActivityId(projectId, activityTypes, activeName) }
     const blockId = newId()
     const rowId = newId()
     onChange((d) => {
@@ -74,11 +76,25 @@ export function NowWorking({ day, result, projects, activityTypes, onChange }: P
           {types.length > 1 && types.length <= 3 && (
             <Segmented
               size="small"
-              ariaLabel="Tätigkeitsart (gerade)"
+              ariaLabel="Tätigkeit (gerade)"
               options={types.map((a) => ({ value: a.id, label: a.name }))}
               value={active.activityTypeId}
               onChange={setType}
             />
+          )}
+          {types.length > 3 && (
+            <select
+              className="input"
+              aria-label="Tätigkeit (gerade)"
+              value={active.activityTypeId}
+              onChange={(e) => setType(e.target.value)}
+            >
+              {types.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {activityLabel(a)}
+                </option>
+              ))}
+            </select>
           )}
           <span className="num now-working__time" data-testid="now-active-time">
             {formatDuration(result.minutes[active.id] ?? 0)}

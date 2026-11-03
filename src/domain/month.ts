@@ -50,7 +50,7 @@ function placeholderProject(id: string): Project {
 }
 
 function placeholderActivity(id: string): ActivityType {
-  return { id, name: 'Unbekannt', active: false, sortOrder: 1e9 }
+  return { id, projectId: null, name: 'Unbekannt', code: '', active: false, sortOrder: 1e9 }
 }
 
 export function buildMonthGrid(
@@ -138,19 +138,20 @@ export function monthGridToTable(grid: MonthGrid): string[][] {
     'Projekt',
     'Nr.',
     'Tätigkeit',
+    'Tätigkeit Nr.',
     ...grid.dates.map((d) => `${weekdayShort(d)} ${formatDateShort(d)}`),
     'Summe',
   ]
   const rows = grid.groups.flatMap((g) =>
-    g.rows.map((r) => [g.project.name, g.project.code, r.activityType.name, ...r.perDay.map(fmt), fmt(r.total)]),
+    g.rows.map((r) => [g.project.name, g.project.code, r.activityType.name, r.activityType.code, ...r.perDay.map(fmt), fmt(r.total)]),
   )
   const blank = new Array<string>(header.length).fill('')
   return [
     header,
     ...rows,
     blank,
-    ['Summe gebucht', '', '', ...grid.days.map((d) => fmt(d.booked)), fmt(grid.totals.booked)],
-    ['Arbeitszeit', '', '', ...grid.days.map((d) => fmt(d.worked ?? 0)), fmt(grid.totals.worked)],
+    ['Summe gebucht', '', '', '', ...grid.days.map((d) => fmt(d.booked)), fmt(grid.totals.booked)],
+    ['Arbeitszeit', '', '', '', ...grid.days.map((d) => fmt(d.worked ?? 0)), fmt(grid.totals.worked)],
   ]
 }
 

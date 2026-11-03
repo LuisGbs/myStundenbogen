@@ -5,13 +5,14 @@ import { emptyDay, isEmptyDay } from '../domain/day'
 import { newId } from '../domain/id'
 import { reorderIds } from '../domain/order'
 import type { SharedActivityType, SharedProject } from '../domain/projectTransfer'
+import { copyTemplate, templateActivities } from '../domain/activities'
 import { insertAfter } from '../domain/tasks'
 import type { ImportGroup } from '../domain/taskText'
 import type { ActivityType, Day, ISODate, Project, Settings, Task } from '../domain/types'
 import { db } from './db'
 import { recordDayChange } from './history'
 
-// ---------- Sortierung (gemeinsam für Projekte und Tätigkeitsarten) ----------
+// ---------- Sortierung (gemeinsam für Projekte und Tätigkeiten) ----------
 
 type Sortable = { id: string; sortOrder: number }
 
@@ -42,8 +43,12 @@ async function nextSortOrder(table: Table<Sortable, string>): Promise<number> {
 
 // ---------- Projekte ----------
 
-export async function createProject(input: { name: string; code?: string }): Promise<Project> {
-  return db.transaction('rw', db.projects, async () => {
+/** Neues Projekt; es bekommt die Tätigkeiten der Standardliste (bzw. `activities`). */
+export async function createProject(
+  input: { name: string; code?: string },
+  activities?: SharedActivityType[],
+): Promise<Project> {
+  return db.transaction('rw', db.projects, db.activityTypes, async () => {
     const all = await db.projects.toArray()
     const project: Project = {
       id: newId(),
@@ -55,8 +60,24 @@ export async function createProject(input: { name: string; code?: string }): Pro
       createdAt: new Date().toISOString(),
     }
     await db.projects.add(project)
+    await addProjectActivities(project.id, activities)
     return project
   })
+}
+
+/** Tätigkeiten eines neuen Projekts: aus der Liste (Import) oder Kopie der Standardliste. */
+async function addProjectActivities(projectId: string, activities?: SharedActivityType[]): Promise<void> {
+  const rows: ActivityType[] = activities?.length
+    ? activities.map((a, i) => ({
+        id: newId(),
+        projectId,
+        name: a.name.trim(),
+        code: (a.code ?? '').trim(),
+        active: true,
+        sortOrder: i,
+      }))
+    : copyTemplate(projectId, await db.activityTypes.toArray(), newId)
+  await db.activityTypes.bulkAdd(rows)
 }
 
 export async function updateProject(id: string, patch: Partial<Omit<Project, 'id'>>): Promise<void> {
@@ -77,9 +98,10 @@ export function isProjectInUse(id: string): Promise<boolean> {
 
 /** Löscht nur unbenutzte Projekte (samt ihren Aufgaben). Gibt false zurück, wenn es Buchungen gibt. */
 export async function deleteProject(id: string): Promise<boolean> {
-  return db.transaction('rw', [db.projects, db.days, db.settings, db.tasks], async () => {
+  return db.transaction('rw', [db.projects, db.activityTypes, db.days, db.settings, db.tasks], async () => {
     if (await isProjectInUse(id)) return false
     await db.projects.delete(id)
+    await db.activityTypes.where('projectId').equals(id).delete()
     // Aufgaben des Projekts gehen mit (die Oberfläche fragt vorher nach)
     await db.tasks.where('projectId').equals(id).delete()
     const settings = await db.settings.get('settings')
@@ -94,13 +116,26 @@ export async function deleteProject(id: string): Promise<boolean> {
  */
 export async function importProjectList(projects: SharedProject[], activityTypes: SharedActivityType[]): Promise<void> {
   await db.transaction('rw', db.projects, db.activityTypes, async () => {
+    // zuerst die Standardliste ergänzen – Projekte ohne eigene Tätigkeiten bekommen sie dann mit
+    let typeOrder = templateActivities(await db.activityTypes.toArray()).length
+    for (const a of activityTypes) {
+      await db.activityTypes.add({
+        id: newId(),
+        projectId: null,
+        name: a.name.trim(),
+        code: (a.code ?? '').trim(),
+        active: true,
+        sortOrder: typeOrder++,
+      })
+    }
     const colors = (await db.projects.toArray()).map((p) => p.color)
     let projectOrder = await nextSortOrder(db.projects)
     for (const p of projects) {
       const color = /^#[0-9a-f]{6}$/i.test(p.color) ? p.color : nextProjectColor(colors)
       colors.push(color)
+      const id = newId()
       await db.projects.add({
-        id: newId(),
+        id,
         name: p.name.trim(),
         code: p.code.trim(),
         color,
@@ -108,44 +143,72 @@ export async function importProjectList(projects: SharedProject[], activityTypes
         sortOrder: projectOrder++,
         createdAt: new Date().toISOString(),
       })
-    }
-    let typeOrder = await nextSortOrder(db.activityTypes)
-    for (const a of activityTypes) {
-      await db.activityTypes.add({ id: newId(), name: a.name.trim(), active: true, sortOrder: typeOrder++ })
+      await addProjectActivities(id, p.activities)
     }
   })
 }
 
-// ---------- Tätigkeitsarten ----------
+// ---------- Tätigkeiten (je Projekt; projectId null = Standardliste) ----------
 
-export async function createActivityType(name: string): Promise<ActivityType> {
+const sameGroup = (projectId: string | null) => (a: ActivityType) => a.projectId === projectId
+
+export async function createActivityType(name: string, projectId: string | null = null, code = ''): Promise<ActivityType> {
   return db.transaction('rw', db.activityTypes, async () => {
+    const group = (await db.activityTypes.toArray()).filter(sameGroup(projectId))
     const activityType: ActivityType = {
       id: newId(),
+      projectId,
       name: name.trim(),
+      code: code.trim(),
       active: true,
-      sortOrder: await nextSortOrder(db.activityTypes),
+      sortOrder: group.reduce((max, a) => Math.max(max, a.sortOrder + 1), 0),
     }
     await db.activityTypes.add(activityType)
     return activityType
   })
 }
 
-export async function updateActivityType(id: string, patch: Partial<Omit<ActivityType, 'id'>>): Promise<void> {
-  await db.activityTypes.update(id, patch)
+/**
+ * Ändert Name, Nummer oder aktiv. Die letzte aktive Tätigkeit eines Projekts
+ * lässt sich nicht deaktivieren (gibt dann false zurück) – sonst ginge Buchen nicht mehr.
+ */
+export async function updateActivityType(
+  id: string,
+  patch: Partial<Pick<ActivityType, 'name' | 'code' | 'active'>>,
+): Promise<boolean> {
+  return db.transaction('rw', db.activityTypes, async () => {
+    const current = await db.activityTypes.get(id)
+    if (!current) return false
+    if (patch.active === false && current.active && (await isLastActive(current))) return false
+    await db.activityTypes.update(id, patch)
+    return true
+  })
 }
 
+async function isLastActive(a: ActivityType): Promise<boolean> {
+  if (a.projectId === null) return false
+  const own = await db.activityTypes.where('projectId').equals(a.projectId).toArray()
+  return own.filter((x) => x.active && x.id !== a.id).length === 0
+}
+
+/** Sortiert innerhalb der eigenen Gruppe (Projekt bzw. Standardliste). */
 export async function reorderActivityType(id: string, beforeId: string | null): Promise<void> {
-  await reorderItem(db.activityTypes, id, beforeId)
+  const item = await db.activityTypes.get(id)
+  if (!item) return
+  await reorderItem(db.activityTypes, id, beforeId, sameGroup(item.projectId))
 }
 
 export function isActivityTypeInUse(id: string): Promise<boolean> {
   return isReferenced((d) => d.allocations.some((a) => a.activityTypeId === id))
 }
 
+/** Löscht nur unbenutzte Tätigkeiten und nie die letzte aktive eines Projekts. */
 export async function deleteActivityType(id: string): Promise<boolean> {
   return db.transaction('rw', db.activityTypes, db.days, db.settings, async () => {
+    const current = await db.activityTypes.get(id)
+    if (!current) return false
     if (await isActivityTypeInUse(id)) return false
+    if (current.active && (await isLastActive(current))) return false
     await db.activityTypes.delete(id)
     const settings = await db.settings.get('settings')
     if (settings?.defaultFill?.activityTypeId === id) await db.settings.update('settings', { defaultFill: null })
@@ -306,7 +369,7 @@ export interface TaskImportResult {
  * Transaktion). Ziele „neues Projekt“ mit gleichem Namen teilen sich ein Projekt.
  */
 export async function importTasks(groups: ImportGroup[], today: ISODate): Promise<TaskImportResult> {
-  return db.transaction('rw', db.projects, db.tasks, async () => {
+  return db.transaction('rw', db.projects, db.activityTypes, db.tasks, async () => {
     const result: TaskImportResult = { taskIds: [], projectIds: [], taskCount: 0 }
     const colors = (await db.projects.toArray()).map((p) => p.color)
     let projectOrder = await nextSortOrder(db.projects)
@@ -331,6 +394,7 @@ export async function importTasks(groups: ImportGroup[], today: ISODate): Promis
       }
       colors.push(project.color)
       await db.projects.add(project)
+      await addProjectActivities(project.id)
       created.set(key, project.id)
       result.projectIds.push(project.id)
       return project.id
@@ -383,7 +447,7 @@ export async function importTasks(groups: ImportGroup[], today: ISODate): Promis
 
 /** Macht einen Import rückgängig: genau diese Einträge, neu angelegte Projekte nur, wenn unbenutzt. */
 export async function undoTaskImport(result: TaskImportResult): Promise<void> {
-  await db.transaction('rw', [db.projects, db.days, db.settings, db.tasks], async () => {
+  await db.transaction('rw', [db.projects, db.activityTypes, db.days, db.settings, db.tasks], async () => {
     await db.tasks.bulkDelete(result.taskIds)
     for (const id of result.projectIds) {
       if ((await db.tasks.where('projectId').equals(id).count()) === 0) await deleteProject(id)

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { activitiesOf, activityLabel, templateActivities } from '../../domain/activities'
 import { todayISO } from '../../domain/date'
 import {
   buildProjectList,
@@ -55,7 +56,7 @@ export function ExportProjectsDialog({
   onClose: () => void
 }) {
   const { selected, toggle, setAll } = useSelection(projects.flatMap((p, i) => (p.active ? [i] : [])))
-  const activeTypes = activityTypes.filter((a) => a.active)
+  const template = templateActivities(activityTypes).filter((a) => a.active)
 
   const exportSelected = () => {
     const chosen = projects.filter((_, i) => selected.has(i))
@@ -78,9 +79,9 @@ export function ExportProjectsDialog({
       }
     >
       <p className="muted small">
-        Die Datei enthält nur Projektnamen, Projektnummern, Farben und die Tätigkeitsarten (
-        {activeTypes.map((a) => a.name).join(', ') || 'keine'}) – <strong>keine Stunden und keine Tage</strong>. Du
-        kannst sie z.B. Kollegen schicken.
+        Die Datei enthält nur Projektnamen, Projektnummern, Farben, die Tätigkeiten je Projekt und deine Standardliste (
+        {template.map((a) => a.name).join(', ') || 'leer'}) – <strong>keine Stunden und keine Tage</strong>. Du kannst
+        sie z.B. Kollegen schicken.
       </p>
       <div className="check-list__head">
         <strong>Projekte</strong>
@@ -95,6 +96,9 @@ export function ExportProjectsDialog({
               <span className="check-row__name">{p.name}</span>
               {p.code && <span className="check-row__code">{p.code}</span>}
               {!p.active && <span className="badge badge--muted">inaktiv</span>}
+              <span className="check-row__hint">
+                {activitiesOf(p.id, activityTypes).map(activityLabel).join(', ') || 'keine Tätigkeiten'}
+              </span>
             </label>
           </li>
         ))}
@@ -141,7 +145,7 @@ export function ImportProjectsDialog({
       projectPlan.filter((_, i) => projectSel.selected.has(i)).map((c) => c.item),
       typePlan.filter((_, i) => typeSel.selected.has(i)).map((c) => c.item),
     )
-    onDone(`${projectSel.selected.size} Projekte und ${typeSel.selected.size} Tätigkeitsarten übernommen`)
+    onDone(`${projectSel.selected.size} Projekte und ${typeSel.selected.size} Einträge der Standardliste übernommen`)
   }
 
   return (
@@ -152,7 +156,7 @@ export function ImportProjectsDialog({
         <>
           <span className="muted small" data-testid="import-summary">
             {projectSel.selected.size} von {projectPlan.length} Projekten
-            {typePlan.length > 0 && `, ${typeSel.selected.size} von ${typePlan.length} Tätigkeitsarten`} werden
+            {typePlan.length > 0 && `, ${typeSel.selected.size} von ${typePlan.length} Einträgen der Standardliste`} werden
             übernommen
           </span>
           <button type="button" className="btn btn--primary" disabled={total === 0} onClick={() => void apply()}>
@@ -183,6 +187,11 @@ export function ImportProjectsDialog({
                 {c.item.code && <span className="check-row__code">{c.item.code}</span>}
                 <span className={`badge badge--${c.status}`}>{STATUS_LABEL[c.status]}</span>
                 {statusHint(c) && <span className="check-row__hint">{statusHint(c)}</span>}
+                {c.status === 'new' && (
+                  <span className="check-row__hint">
+                    Tätigkeiten: {c.item.activities?.map(activityLabel).join(', ') || 'deine Standardliste'}
+                  </span>
+                )}
               </label>
             </li>
           ))}
@@ -192,7 +201,7 @@ export function ImportProjectsDialog({
       {typePlan.length > 0 && (
         <>
           <div className="check-list__head">
-            <strong>Tätigkeitsarten</strong>
+            <strong>Standardliste (Tätigkeiten für neue Projekte)</strong>
             <AllNone count={typePlan.length} setAll={typeSel.setAll} />
           </div>
           <ul className="check-list">
@@ -201,6 +210,7 @@ export function ImportProjectsDialog({
                 <label className="check-row">
                   <input type="checkbox" checked={typeSel.selected.has(i)} onChange={() => typeSel.toggle(i)} />
                   <span className="check-row__name">{c.item.name}</span>
+                  {c.item.code && <span className="check-row__code">{c.item.code}</span>}
                   <span className={`badge badge--${c.status}`}>{STATUS_LABEL[c.status]}</span>
                 </label>
               </li>

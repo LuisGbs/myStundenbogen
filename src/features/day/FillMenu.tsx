@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { applyDefaultFill, hasDayRest } from '../../domain/allocation'
 import { newId } from '../../domain/id'
+import { activitiesOf, activityLabel } from '../../domain/activities'
 import type { ActivityType, Day, Project, Settings } from '../../domain/types'
 import { Icon } from '../../components/Icon'
 import { updateSettings } from '../../storage/repo'
@@ -45,7 +46,7 @@ export function FillMenu({ day, projects, activityTypes, settings, onChange }: P
 
   const combos = projects
     .filter((p) => p.active)
-    .flatMap((p) => activityTypes.filter((a) => a.active).map((a) => ({ p, a })))
+    .flatMap((p) => activitiesOf(p.id, activityTypes).map((a) => ({ p, a })))
 
   const fillDefault = (t: FillTarget) => {
     onChange((d) => ({ ...d, allocations: applyDefaultFill(d.allocations, t, newId()) }))
@@ -69,7 +70,7 @@ export function FillMenu({ day, projects, activityTypes, settings, onChange }: P
             {target && targetProject && targetType && (
               <button type="button" role="menuitem" className="menu__item" onClick={() => fillDefault(target)}>
                 <span className="dot" style={{ background: targetProject.color }} />
-                {targetProject.name} · {targetType.name}
+                {targetProject.name} · {activityLabel(targetType)}
               </button>
             )}
             <select
@@ -86,7 +87,7 @@ export function FillMenu({ day, projects, activityTypes, settings, onChange }: P
               <option value="">{target ? 'Anderes Standardprojekt …' : 'Standardprojekt wählen …'}</option>
               {combos.map(({ p, a }) => (
                 <option key={`${p.id}|${a.id}`} value={`${p.id}|${a.id}`}>
-                  {p.name} · {a.name}
+                  {p.name} · {activityLabel(a)}
                 </option>
               ))}
             </select>

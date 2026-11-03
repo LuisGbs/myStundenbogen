@@ -20,6 +20,13 @@ test('Projektliste exportieren und bei einer Kollegin ohne Dubletten importieren
     ['Beta', 'P-2'],
     ['Gamma', ''],
   ])
+  // Beta bekommt eine eigene Tätigkeit mit Nummer
+  await page.getByRole('button', { name: 'Tätigkeiten von Beta' }).click()
+  await page.getByLabel('Neue Tätigkeit für Beta', { exact: true }).fill('Engineering')
+  await page.getByLabel('Nummer der neuen Tätigkeit für Beta').fill('10')
+  await page.getByTestId('activities-Beta').getByRole('button', { name: 'Hinzufügen' }).click()
+  await expect(page.getByTestId('activities-Beta').getByLabel('Name der Tätigkeit')).toHaveCount(3)
+
   await page.getByRole('button', { name: 'Exportieren …' }).click()
   const exportDialog = page.getByRole('dialog', { name: 'Projekte exportieren' })
   await expect(exportDialog).toContainText('keine Stunden und keine Tage')
@@ -31,6 +38,11 @@ test('Projektliste exportieren und bei einer Kollegin ohne Dubletten importieren
   const file = JSON.parse(await readFile(await download.path(), 'utf8'))
   expect(file.projects.map((p: { name: string }) => p.name)).toEqual(['Alpha', 'Beta'])
   expect(file.days).toBeUndefined()
+  expect(file.projects[1].activities).toEqual([
+    { name: 'Büro', code: '' },
+    { name: 'Meeting', code: '' },
+    { name: 'Engineering', code: '10' },
+  ])
 
   // Kollegin (eigener, leerer Browser): hat „Alpha AG“ mit derselben Nummer schon
   const colleague = await (await browser.newContext()).newPage()
@@ -49,12 +61,15 @@ test('Projektliste exportieren und bei einer Kollegin ohne Dubletten importieren
   await expect(items.nth(0)).toContainText('schon vorhanden')
   await expect(items.nth(0).getByRole('checkbox')).not.toBeChecked()
   await expect(items.nth(1)).toContainText('neu')
+  await expect(items.nth(1)).toContainText('Engineering (10)')
   await expect(items.nth(1).getByRole('checkbox')).toBeChecked()
-  await expect(importDialog.getByTestId('import-summary')).toContainText('1 von 2 Projekten, 0 von 2 Tätigkeitsarten')
+  await expect(importDialog.getByTestId('import-summary')).toContainText('1 von 2 Projekten, 0 von 2 Einträgen der Standardliste')
   await colleague.screenshot({ path: 'test-results/projekte-import.png' })
   await importDialog.getByRole('button', { name: 'Übernehmen' }).click()
 
-  await expect(colleague.getByText('1 Projekte und 0 Tätigkeitsarten übernommen')).toBeVisible()
+  await expect(colleague.getByText('1 Projekte und 0 Einträge der Standardliste übernommen')).toBeVisible()
   await expect(colleague.locator('.item-row input[aria-label="Projektname"]')).toHaveCount(2)
   await expect(colleague.locator('.item-row input[aria-label="Projektname"]').nth(1)).toHaveValue('Beta')
+  await colleague.getByRole('button', { name: 'Tätigkeiten von Beta' }).click()
+  await expect(colleague.getByTestId('activities-Beta').getByLabel('Nummer der Tätigkeit').nth(2)).toHaveValue('10')
 })

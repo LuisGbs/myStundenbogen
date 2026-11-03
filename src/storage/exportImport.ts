@@ -1,7 +1,8 @@
 import { isISODate } from '../domain/date'
 import { emptyDay } from '../domain/day'
-import { upgradeAllocationV5 } from '../domain/legacy'
-import type { ProjectListFile } from '../domain/projectTransfer'
+import { newId } from '../domain/id'
+import { splitActivitiesPerProject, upgradeAllocationV5 } from '../domain/legacy'
+import type { ProjectListFile, SharedActivityType, SharedProject } from '../domain/projectTransfer'
 import type { ActivityType, Day, Project, Settings, Task } from '../domain/types'
 import { db } from './db'
 import { clearHistory } from './history'
@@ -11,7 +12,7 @@ import { defaultSettings } from './seed'
  * Version des Sicherungsformats. Bei jeder Änderung am Datenmodell erhöhen und
  * in MIGRATIONS eine Funktion „von Version n auf n+1“ ergänzen.
  */
-export const SCHEMA_VERSION = 8
+export const SCHEMA_VERSION = 9
 
 const MIGRATIONS: Record<number, (data: Record<string, unknown>) => Record<string, unknown>> = {
   // 1 → 2: Allocation.blockId ist neu und optional – alte Zeilen bleiben „frei verteilt“.
@@ -35,6 +36,18 @@ const MIGRATIONS: Record<number, (data: Record<string, unknown>) => Record<strin
   6: (data) => ({ ...data, tasks: Array.isArray(data.tasks) ? data.tasks : [] }),
   // 7 → 8: Task.starred (★) – ergänzt parseBackup über den Standardwert false.
   7: (data) => data,
+  // 8 → 9: Tätigkeiten je Projekt – Standardliste + Kopien je Projekt, Buchungen umgeschrieben.
+  8: (data) =>
+    splitActivitiesPerProject(
+      {
+        ...data,
+        projects: Array.isArray(data.projects) ? data.projects : [],
+        activityTypes: Array.isArray(data.activityTypes) ? data.activityTypes : [],
+        days: Array.isArray(data.days) ? data.days : [],
+        settings: isRecord(data.settings) ? data.settings : null,
+      },
+      newId,
+    ),
 }
 
 export interface BackupData {
@@ -113,9 +126,9 @@ export function parseBackup(text: string): BackupFile {
     if (typeof p.id !== 'string' || typeof p.name !== 'string') throw new ImportError('Ungültiges Projekt in der Sicherung.')
     return { code: '', color: '#2563eb', active: true, sortOrder: 0, createdAt: '', ...p } as Project
   })
-  const activityTypes = asArray(data.activityTypes, 'Tätigkeitsarten').map((a): ActivityType => {
-    if (typeof a.id !== 'string' || typeof a.name !== 'string') throw new ImportError('Ungültige Tätigkeitsart in der Sicherung.')
-    return { active: true, sortOrder: 0, ...a } as ActivityType
+  const activityTypes = asArray(data.activityTypes, 'Tätigkeiten').map((a): ActivityType => {
+    if (typeof a.id !== 'string' || typeof a.name !== 'string') throw new ImportError('Ungültige Tätigkeit in der Sicherung.')
+    return { projectId: null, code: '', active: true, sortOrder: 0, ...a } as ActivityType
   })
   const days = asArray(data.days, 'Tage').map((d): Day => {
     if (typeof d.date !== 'string' || !isISODate(d.date)) throw new ImportError('Ungültiger Tag in der Sicherung.')
@@ -162,8 +175,10 @@ function str(v: unknown): string {
 }
 
 /**
- * Liest eine geteilte Projektliste. Eine komplette Sicherung wird auch
- * akzeptiert – daraus werden nur Projekte und Tätigkeitsarten genommen.
+ * Liest eine geteilte Projektliste (Format 1 oder 2). Eine komplette Sicherung
+ * wird auch akzeptiert – daraus werden nur Projekte und Tätigkeiten genommen.
+ * Projekte ohne eigene Tätigkeiten bekommen die Tätigkeitsarten der Datei
+ * (Format 1); gibt es auch die nicht, später die eigene Standardliste.
  */
 export function parseProjectList(text: string): ProjectListFile {
   let raw: unknown
@@ -178,17 +193,38 @@ export function parseProjectList(text: string): ProjectListFile {
   const source = raw.kind === 'projects' ? raw : isRecord(raw.data) ? raw.data : null
   if (!source) throw new ImportError('In der Datei wurden keine Projekte gefunden.')
 
+  const activity = (a: Record<string, unknown>): SharedActivityType => ({ name: str(a.name).trim(), code: str(a.code).trim() })
+  const named = (list: SharedActivityType[]) => list.filter((a) => a.name !== '')
+  const rawTypes = Array.isArray(source.activityTypes) ? asArray(source.activityTypes, 'Tätigkeiten') : []
+  // Sicherung ab Stand 9: Tätigkeiten hängen über projectId an den Projekten
+  const isBackupWithProjects = raw.kind !== 'projects' && rawTypes.some((a) => typeof a.projectId === 'string')
+  const activityTypes = named(
+    (isBackupWithProjects ? rawTypes.filter((a) => a.projectId === null || a.projectId === undefined) : rawTypes)
+      .filter((a) => a.active !== false)
+      .map(activity),
+  )
+
   const projects = asArray(source.projects, 'Projekte')
-    .map((p) => ({ name: str(p.name).trim(), code: str(p.code).trim(), color: str(p.color) }))
+    .map((p): SharedProject => {
+      const own = isBackupWithProjects
+        ? named(
+            rawTypes
+              .filter((a) => a.projectId === p.id && a.active !== false)
+              .sort((a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0))
+              .map(activity),
+          )
+        : Array.isArray(p.activities)
+          ? named(asArray(p.activities, 'Tätigkeiten').map(activity))
+          : []
+      const activities = own.length > 0 ? own : activityTypes.length > 0 ? activityTypes : undefined
+      return { name: str(p.name).trim(), code: str(p.code).trim(), color: str(p.color), activities }
+    })
     .filter((p) => p.name !== '')
-  const activityTypes = (Array.isArray(source.activityTypes) ? asArray(source.activityTypes, 'Tätigkeitsarten') : [])
-    .map((a) => ({ name: str(a.name).trim() }))
-    .filter((a) => a.name !== '')
 
   return {
     app: 'stundenbogen',
     kind: 'projects',
-    schemaVersion: 1,
+    schemaVersion: 2,
     exportedAt: str(raw.exportedAt),
     projects,
     activityTypes,
