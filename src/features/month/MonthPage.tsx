@@ -257,6 +257,7 @@ function GroupRows({
         <tr key={r.activityType.id} className="sub-row">
           <th className="sticky-col" scope="row">
             {r.activityType.name}
+            {r.activityType.code && <span className="group-row__code">{r.activityType.code}</span>}
           </th>
           {days.map((d, i) => (
             <td

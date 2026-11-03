@@ -56,3 +56,53 @@
   flex: none;
 }
 
+
+/* Tätigkeiten je Projekt */
+.project-acts-toggle .icon {
+  transition: transform 0.15s ease;
+}
+
+.project-acts-toggle.is-open .icon {
+  transform: rotate(180deg);
+}
+
+.project-acts {
+  flex-basis: 100%;
+  padding: 0.4rem 0 0.2rem 2.2rem;
+}
+
+.act-list__items {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.act-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  padding: 0.25rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-small);
+  background: var(--surface);
+}
+
+.act-row.is-inactive {
+  opacity: 0.65;
+}
+
+.act-row__name {
+  flex: 1 1 10rem;
+}
+
+.act-row__code {
+  flex: 0 1 7rem;
+}
+
+.act-list__add {
+  margin-bottom: 0;
+}

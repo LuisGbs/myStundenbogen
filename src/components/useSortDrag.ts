@@ -24,7 +24,9 @@ export function useSortDrag(list: string, ids: string[], onDrop: (id: string, be
   const targetAt = (x: number, y: number): string | null | undefined => {
     const el = document.elementFromPoint(x, y)
     if (!el?.closest(`[data-sort-list="${list}"]`)) return undefined
-    const row = el.closest<HTMLElement>('[data-sort-id]')
+    // Verschachtelte Listen (z.B. Tätigkeiten im Projekt): bis zum eigenen Eintrag hochgehen
+    let row = el.closest<HTMLElement>('[data-sort-id]')
+    while (row && !ids.includes(row.dataset.sortId!)) row = row.parentElement?.closest<HTMLElement>('[data-sort-id]') ?? null
     if (!row) return undefined
     const i = ids.indexOf(row.dataset.sortId!)
     const rect = row.getBoundingClientRect()

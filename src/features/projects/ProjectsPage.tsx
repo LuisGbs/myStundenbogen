@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { allActivitiesOf, templateActivities } from '../../domain/activities'
 import type { ProjectListFile } from '../../domain/projectTransfer'
 import type { ActivityType, Project } from '../../domain/types'
 import { Icon } from '../../components/Icon'
@@ -9,17 +10,9 @@ import { useSortDrag } from '../../components/useSortDrag'
 import { pickTextFile, useLocalPreference } from '../../lib/browser'
 import { ImportError, parseProjectList } from '../../storage/exportImport'
 import { useActivityTypes, useProjects } from '../../storage/hooks'
-import {
-  countProjectTasks,
-  createActivityType,
-  createProject,
-  deleteActivityType,
-  deleteProject,
-  reorderActivityType,
-  reorderProject,
-  updateActivityType,
-  updateProject,
-} from '../../storage/repo'
+import { countProjectTasks, createProject, deleteProject, reorderProject, updateProject } from '../../storage/repo'
+import { ActiveSwitch } from './ActiveSwitch'
+import { ActivityList } from './ActivityList'
 import { ExportProjectsDialog, ImportProjectsDialog } from './ProjectTransferDialog'
 import './projects.css'
 
@@ -30,7 +23,7 @@ export function ProjectsPage() {
   return (
     <div className="page page--narrow">
       <ProjectsCard projects={projects} activityTypes={activityTypes} />
-      <ActivityTypesCard activityTypes={activityTypes} />
+      <TemplateCard activityTypes={activityTypes} />
     </div>
   )
 }
@@ -43,6 +36,14 @@ function ProjectsCard({ projects, activityTypes }: { projects: Project[]; activi
   const [code, setCode] = useState('')
   const [dialog, setDialog] = useState<TransferDialog>(null)
   const [toast, showToast] = useToast()
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
+  const toggleExpanded = (id: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   const inactiveCount = projects.filter((p) => !p.active).length
   const visible = showInactive ? projects : projects.filter((p) => p.active)
   const projectSort = useSortDrag(
@@ -155,53 +156,73 @@ function ProjectsCard({ projects, activityTypes }: { projects: Project[]; activi
           className={`item-list${projectSort.dragging ? ' is-dragging' : ''}${projectSort.dropAtEnd ? ' is-drop-end' : ''}`}
           data-sort-list="projects"
         >
-          {visible.map((p) => (
-            <li
-              key={p.id}
-              className={`item-row${p.active ? '' : ' is-inactive'} ${projectSort.rowClass(p.id)}`}
-              data-sort-id={p.id}
-              data-testid="project-row"
-            >
-              <SortGrip label={`${p.name} verschieben`} {...projectSort.gripProps(p.id)} />
-              <ColorInput
-                className="color-input"
-                aria-label={`Farbe von ${p.name}`}
-                value={p.color}
-                onCommit={(color) => void updateProject(p.id, { color })}
-              />
-              <CommitInput
-                className="input item-row__name"
-                aria-label="Projektname"
-                value={p.name}
-                onCommit={(text) => {
-                  const trimmed = text.trim()
-                  if (!trimmed) return null
-                  void updateProject(p.id, { name: trimmed })
-                  return trimmed
-                }}
-              />
-              <CommitInput
-                className="input item-row__code"
-                aria-label="Projektnummer"
-                placeholder="Projektnr."
-                value={p.code}
-                onCommit={(text) => {
-                  void updateProject(p.id, { code: text.trim() })
-                  return text.trim()
-                }}
-              />
-              <ActiveSwitch active={p.active} onChange={(active) => void updateProject(p.id, { active })} />
-              <button
-                type="button"
-                className="icon-btn icon-btn--subtle"
-                aria-label={`${p.name} löschen`}
-                title="Löschen (nur ohne Buchungen)"
-                onClick={() => void remove(p)}
+          {visible.map((p) => {
+            const own = allActivitiesOf(p.id, activityTypes)
+            const open = expanded.has(p.id)
+            return (
+              <li
+                key={p.id}
+                className={`item-row${p.active ? '' : ' is-inactive'} ${projectSort.rowClass(p.id)}`}
+                data-sort-id={p.id}
+                data-testid="project-row"
               >
-                <Icon name="trash" />
-              </button>
-            </li>
-          ))}
+                <SortGrip label={`${p.name} verschieben`} {...projectSort.gripProps(p.id)} />
+                <ColorInput
+                  className="color-input"
+                  aria-label={`Farbe von ${p.name}`}
+                  value={p.color}
+                  onCommit={(color) => void updateProject(p.id, { color })}
+                />
+                <CommitInput
+                  className="input item-row__name"
+                  aria-label="Projektname"
+                  value={p.name}
+                  onCommit={(text) => {
+                    const trimmed = text.trim()
+                    if (!trimmed) return null
+                    void updateProject(p.id, { name: trimmed })
+                    return trimmed
+                  }}
+                />
+                <CommitInput
+                  className="input item-row__code"
+                  aria-label="Projektnummer"
+                  placeholder="Projektnr."
+                  value={p.code}
+                  onCommit={(text) => {
+                    void updateProject(p.id, { code: text.trim() })
+                    return text.trim()
+                  }}
+                />
+                <ActiveSwitch active={p.active} onChange={(active) => void updateProject(p.id, { active })} />
+                <button
+                  type="button"
+                  className={`btn btn--ghost btn--small project-acts-toggle${open ? ' is-open' : ''}`}
+                  aria-expanded={open}
+                  aria-label={`Tätigkeiten von ${p.name}`}
+                  title={own.map((a) => a.name).join(', ')}
+                  onClick={() => toggleExpanded(p.id)}
+                >
+                  Tätigkeiten ({own.filter((a) => a.active).length})
+                  <Icon name="chevron-down" />
+                </button>
+                <button
+                  type="button"
+                  className="icon-btn icon-btn--subtle"
+                  aria-label={`${p.name} löschen`}
+                  title="Löschen (nur ohne Buchungen)"
+                  onClick={() => void remove(p)}
+                >
+                  <Icon name="trash" />
+                </button>
+                {open && (
+                  <div className="project-acts">
+                    <ActivityList projectId={p.id} activities={own} owner={p.name} />
+                  </div>
+                )}
+              </li>
+            )
+          })}
         </ul>
       )}
       <p className="muted small">
@@ -212,90 +233,19 @@ function ProjectsCard({ projects, activityTypes }: { projects: Project[]; activi
   )
 }
 
-function ActivityTypesCard({ activityTypes }: { activityTypes: ActivityType[] }) {
-  const [name, setName] = useState('')
-  const typeSort = useSortDrag(
-    'activity-types',
-    activityTypes.map((a) => a.id),
-    (id, beforeId) => void reorderActivityType(id, beforeId),
-  )
-
-  const add = async (e: FormEvent) => {
-    e.preventDefault()
-    if (!name.trim()) return
-    await createActivityType(name)
-    setName('')
-  }
-
-  const remove = async (a: ActivityType) => {
-    if (!confirm(`Tätigkeitsart „${a.name}“ wirklich löschen?`)) return
-    if (!(await deleteActivityType(a.id))) {
-      alert(`„${a.name}“ wird bereits verwendet und kann nicht gelöscht werden. Deaktiviere sie stattdessen.`)
-    }
-  }
-
+/** Standardliste: Tätigkeiten, die neue Projekte als Kopie bekommen. */
+function TemplateCard({ activityTypes }: { activityTypes: ActivityType[] }) {
   return (
     <section className="card">
       <header className="card__head">
-        <h2>Tätigkeitsarten</h2>
+        <h2>Standardliste für neue Projekte</h2>
       </header>
       <p className="muted small">
-        Jede Buchung gehört zu Projekt + Tätigkeitsart (z.B. Büro oder Meeting) – wie zwei eigene Einträge in der
-        Firmensoftware.
+        Jede Buchung gehört zu Projekt + Tätigkeit (Unter-Kostenstelle, z.B. Engineering, Abwicklung, Meeting). Jedes
+        Projekt hat seine eigenen Tätigkeiten – oben beim Projekt unter „Tätigkeiten“. Ein neu angelegtes Projekt startet
+        mit einer Kopie dieser Liste; Änderungen hier betreffen bestehende Projekte nicht.
       </p>
-      <ul
-        className={`item-list${typeSort.dragging ? ' is-dragging' : ''}${typeSort.dropAtEnd ? ' is-drop-end' : ''}`}
-        data-sort-list="activity-types"
-      >
-        {activityTypes.map((a) => (
-          <li key={a.id} className={`item-row${a.active ? '' : ' is-inactive'} ${typeSort.rowClass(a.id)}`} data-sort-id={a.id}>
-            <SortGrip label={`${a.name} verschieben`} {...typeSort.gripProps(a.id)} />
-            <CommitInput
-              className="input item-row__name"
-              aria-label="Name der Tätigkeitsart"
-              value={a.name}
-              onCommit={(text) => {
-                const trimmed = text.trim()
-                if (!trimmed) return null
-                void updateActivityType(a.id, { name: trimmed })
-                return trimmed
-              }}
-            />
-            <ActiveSwitch active={a.active} onChange={(active) => void updateActivityType(a.id, { active })} />
-            <button
-              type="button"
-              className="icon-btn icon-btn--subtle"
-              aria-label={`${a.name} löschen`}
-              title="Löschen (nur wenn unbenutzt)"
-              onClick={() => void remove(a)}
-            >
-              <Icon name="trash" />
-            </button>
-          </li>
-        ))}
-      </ul>
-      <form className="add-form" onSubmit={add}>
-        <input
-          className="input add-form__name"
-          placeholder="Neue Tätigkeitsart"
-          aria-label="Neue Tätigkeitsart"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <button type="submit" className="btn" disabled={!name.trim()}>
-          <Icon name="plus" /> Hinzufügen
-        </button>
-      </form>
+      <ActivityList projectId={null} activities={templateActivities(activityTypes)} owner="Standardliste" />
     </section>
-  )
-}
-
-function ActiveSwitch({ active, onChange }: { active: boolean; onChange: (active: boolean) => void }) {
-  return (
-    <label className="switch" title={active ? 'Aktiv – wird beim Eintragen angeboten' : 'Inaktiv – ausgeblendet'}>
-      <input type="checkbox" checked={active} onChange={(e) => onChange(e.target.checked)} />
-      <span className="switch__track" aria-hidden="true" />
-      <span className="switch__label">{active ? 'aktiv' : 'inaktiv'}</span>
-    </label>
   )
 }

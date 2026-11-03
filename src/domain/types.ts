@@ -18,10 +18,17 @@ export interface Project {
   createdAt: string
 }
 
-/** Unterteilung innerhalb eines Projekts, z.B. „Büro“ oder „Meeting“. */
+/**
+ * Tätigkeit eines Projekts (Unter-Kostenstelle), z.B. „Engineering“ oder „Meeting“.
+ * projectId null = Eintrag der Standardliste, die neue Projekte als Kopie bekommen.
+ */
 export interface ActivityType {
   id: string
+  /** Projekt, zu dem die Tätigkeit gehört; null = Standardliste (nicht buchbar) */
+  projectId: string | null
   name: string
+  /** Nummer der Unter-Kostenstelle (optional) */
+  code: string
   active: boolean
   sortOrder: number
 }

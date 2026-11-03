@@ -1,4 +1,5 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
+import { activitiesOf, activityLabel, defaultActivityId, withProject } from '../../domain/activities'
 import { chronologicalOrder, moveAllocation, type MoveTarget, type TimelineBlock } from '../../domain/timeline'
 import {
   applyAmountInput,
@@ -88,14 +89,13 @@ export function AllocationSection({ day, result, projects, activityTypes, settin
   const [message, setMessage] = useState<string | null>(null)
 
   const activeProjects = projects.filter((p) => p.active)
-  const activeTypes = activityTypes.filter((a) => a.active)
 
   const setAllocations = (fn: (list: Allocation[]) => Allocation[]) =>
     onChange((d) => ({ ...d, allocations: fn(d.allocations) }))
 
   const addRow = (projectId: string) => {
     const id = newId()
-    const activityTypeId = (activeTypes[0] ?? activityTypes[0])?.id ?? ''
+    const activityTypeId = defaultActivityId(projectId, activityTypes)
     setAllocations((list) => [
       ...list,
       { id, projectId, activityTypeId, mode: modeForNewAllocation(list), value: 0, note: '' },
@@ -329,7 +329,7 @@ function AllocationRow({
 }: RowProps) {
   const project = projects.find((p) => p.id === allocation.projectId)
   const projectOptions = projects.filter((p) => p.active || p.id === allocation.projectId)
-  const typeOptions = activityTypes.filter((a) => a.active || a.id === allocation.activityTypeId)
+  const typeOptions = activitiesOf(allocation.projectId, activityTypes, allocation.activityTypeId)
   const [noteOpen, setNoteOpen] = useState(false)
   const showNote = noteOpen || allocation.note.trim() !== ''
 
@@ -365,7 +365,7 @@ function AllocationRow({
           value={allocation.projectId}
           onChange={(e) => {
             const projectId = e.target.value
-            onChange((current) => ({ ...current, projectId }))
+            onChange((current) => withProject(current, projectId, activityTypes))
           }}
         >
           {!project && <option value={allocation.projectId}>Unbekanntes Projekt</option>}
@@ -380,7 +380,7 @@ function AllocationRow({
       {typeOptions.length <= 3 ? (
         <Segmented
           size="small"
-          ariaLabel="Tätigkeitsart"
+          ariaLabel="Tätigkeit"
           options={typeOptions.map((a) => ({ value: a.id, label: a.name }))}
           value={allocation.activityTypeId}
           onChange={(activityTypeId) => onChange((current) => ({ ...current, activityTypeId }))}
@@ -388,7 +388,7 @@ function AllocationRow({
       ) : (
         <select
           className="input"
-          aria-label="Tätigkeitsart"
+          aria-label="Tätigkeit"
           value={allocation.activityTypeId}
           onChange={(e) => {
             const activityTypeId = e.target.value
@@ -397,7 +397,7 @@ function AllocationRow({
         >
           {typeOptions.map((a) => (
             <option key={a.id} value={a.id}>
-              {a.name}
+              {activityLabel(a)}
             </option>
           ))}
         </select>

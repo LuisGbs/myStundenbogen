@@ -1,36 +1,51 @@
+import { allActivitiesOf, templateActivities } from './activities'
 import type { ActivityType, Project } from './types'
 
 /**
  * Projektliste zum Weitergeben an Kollegen: nur Namen, Nummern, Farben und
- * Tätigkeitsarten – keine Stunden, keine Tage, keine internen IDs.
+ * Tätigkeiten – keine Stunden, keine Tage, keine internen IDs.
+ *
+ * Format 2: jedes Projekt mit seinen Tätigkeiten (`activities`); `activityTypes`
+ * ist die Standardliste (so lesen auch ältere App-Versionen die Datei weiter).
+ * Format 1 kannte nur `activityTypes` für alle Projekte.
  */
+export interface SharedActivityType {
+  name: string
+  code?: string
+}
+
 export interface SharedProject {
   name: string
   code: string
   color: string
-}
-
-export interface SharedActivityType {
-  name: string
+  /** Tätigkeiten des Projekts; fehlt = Standardliste des Empfängers */
+  activities?: SharedActivityType[]
 }
 
 export interface ProjectListFile {
   app: 'stundenbogen'
   kind: 'projects'
-  schemaVersion: 1
+  schemaVersion: 1 | 2
   exportedAt: string
   projects: SharedProject[]
   activityTypes: SharedActivityType[]
 }
 
+const shared = (a: ActivityType): SharedActivityType => ({ name: a.name, code: a.code })
+
 export function buildProjectList(projects: Project[], activityTypes: ActivityType[]): ProjectListFile {
   return {
     app: 'stundenbogen',
     kind: 'projects',
-    schemaVersion: 1,
+    schemaVersion: 2,
     exportedAt: new Date().toISOString(),
-    projects: projects.map((p) => ({ name: p.name, code: p.code, color: p.color })),
-    activityTypes: activityTypes.filter((a) => a.active).map((a) => ({ name: a.name })),
+    projects: projects.map((p) => ({
+      name: p.name,
+      code: p.code,
+      color: p.color,
+      activities: allActivitiesOf(p.id, activityTypes).filter((a) => a.active).map(shared),
+    })),
+    activityTypes: templateActivities(activityTypes).filter((a) => a.active).map(shared),
   }
 }
 
@@ -85,7 +100,8 @@ export function planActivityTypeImport(
   existing: ActivityType[],
   incoming: SharedActivityType[],
 ): ImportCandidate<SharedActivityType>[] {
-  const names = new Set(existing.map((a) => normalizeKey(a.name)))
+  // verglichen wird mit der Standardliste
+  const names = new Set(templateActivities(existing).map((a) => normalizeKey(a.name)))
   return dedupe(
     incoming.filter((a) => a.name.trim() !== ''),
     (a) => normalizeKey(a.name),

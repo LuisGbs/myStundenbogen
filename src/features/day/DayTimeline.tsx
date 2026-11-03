@@ -2,6 +2,7 @@ import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { changeAllocationMode, type AllocationResult } from '../../domain/allocation'
 import { summarizeDay } from '../../domain/day'
 import { formatDuration, minutesToClock, parseDuration } from '../../domain/duration'
+import { activitiesOf, activityLabel, defaultActivityId } from '../../domain/activities'
 import { newId } from '../../domain/id'
 import {
   insertionBefore,
@@ -133,7 +134,6 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
   const layout = layoutTimeline(shownDay, shownResult, nowMinutes, forecast)
   if (!layout) return null
 
-  const defaultTypeId = (activityTypes.find((a) => a.active) ?? activityTypes[0])?.id ?? ''
   const ctx: PlacementContext = { blockOf: shownResult.blockOf, blocks: layout.blocks }
   const allocationById = new Map(shownDay.allocations.map((a) => [a.id, a]))
   const projectById = new Map(projects.map((p) => [p.id, p]))
@@ -148,7 +148,7 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
   // ---------- Projekt in einen Block einfügen ----------
 
   const addToBlock = (projectId: string, block: TimelineBlock, beforeId: string | null) => {
-    const base = { id: newId(), projectId, activityTypeId: defaultTypeId, note: '' }
+    const base = { id: newId(), projectId, activityTypeId: defaultActivityId(projectId, activityTypes), note: '' }
     if (!insertSegment(day.allocations, block.id, beforeId, base, ctx)) {
       setMessage(fullMessage(block))
       return
@@ -462,7 +462,7 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
           projectName={projectById.get(selected.projectId)?.name ?? '?'}
           openTasks={openTaskCounts(tasks ?? []).get(selected.projectId) ?? 0}
           color={projectById.get(selected.projectId)?.color}
-          activityTypes={activityTypes.filter((a) => a.active || a.id === selected.activityTypeId)}
+          activityTypes={activitiesOf(selected.projectId, activityTypes, selected.activityTypeId)}
           onActivity={(activityTypeId) =>
             onChange((d) => ({
               ...d,
@@ -611,7 +611,7 @@ function SegmentPanel({
         ) : activityTypes.length <= 3 ? (
           <Segmented
             size="small"
-            ariaLabel="Tätigkeitsart"
+            ariaLabel="Tätigkeit"
             options={activityTypes.map((a) => ({ value: a.id, label: a.name }))}
             value={allocation.activityTypeId}
             onChange={onActivity}
@@ -619,13 +619,13 @@ function SegmentPanel({
         ) : (
           <select
             className="input"
-            aria-label="Tätigkeitsart"
+            aria-label="Tätigkeit"
             value={allocation.activityTypeId}
             onChange={(e) => onActivity(e.target.value)}
           >
             {activityTypes.map((a) => (
               <option key={a.id} value={a.id}>
-                {a.name}
+                {activityLabel(a)}
               </option>
             ))}
           </select>

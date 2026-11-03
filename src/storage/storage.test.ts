@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from './db'
 import { buildProjectList } from '../domain/projectTransfer'
 import { parseTaskText, planTaskImport } from '../domain/taskText'
+import type { ActivityType } from '../domain/types'
 import {
   collectBackup,
   ImportError,
@@ -24,6 +25,9 @@ import {
   importTasks,
   undoTaskImport,
   importProjectList,
+  createActivityType,
+  deleteActivityType,
+  updateActivityType,
   reorderActivityType,
   reorderProject,
   recentProjectIds,
@@ -143,10 +147,25 @@ describe('Export/Import', () => {
     const list = buildProjectList(await db.projects.toArray(), await db.activityTypes.toArray())
     const parsed = parseProjectList(JSON.stringify(list))
     expect(parsed.projects).toEqual(list.projects)
+    expect(parsed.projects[0].activities?.map((a) => a.name)).toEqual(['Büro', 'Meeting'])
     expect(parsed.activityTypes.map((a) => a.name)).toEqual(['Büro', 'Meeting'])
 
     const fromBackup = parseProjectList(serializeBackup(await collectBackup()))
     expect(fromBackup.projects.map((p) => p.name)).toEqual(['Alpha'])
+    expect(fromBackup.projects[0].activities?.map((a) => a.name)).toEqual(['Büro', 'Meeting'])
+    expect(fromBackup.activityTypes.map((a) => a.name)).toEqual(['Büro', 'Meeting'])
+
+    // Format 1 (ältere Version): Tätigkeitsarten der Datei gelten für jedes Projekt
+    const v1 = parseProjectList(
+      JSON.stringify({
+        app: 'stundenbogen',
+        kind: 'projects',
+        schemaVersion: 1,
+        projects: [{ name: 'Beta', code: '', color: '' }],
+        activityTypes: [{ name: 'Reise' }],
+      }),
+    )
+    expect(v1.projects[0].activities).toEqual([{ name: 'Reise', code: '' }])
 
     expect(() => parseProjectList('{"app":"anders"}')).toThrow(ImportError)
     expect(() => parseProjectList('{"app":"stundenbogen","kind":"projects"}')).toThrow('Projekte')
@@ -155,7 +174,10 @@ describe('Export/Import', () => {
   it('Projektliste importieren: neue IDs, hinten angehängt, Farbe übernommen', async () => {
     const own = await createProject({ name: 'Eigenes' })
     await importProjectList(
-      [{ name: 'Von Kollegin', code: 'P-7', color: '#ca8a04' }, { name: 'Ohne Farbe', code: '', color: 'kaputt' }],
+      [
+        { name: 'Von Kollegin', code: 'P-7', color: '#ca8a04', activities: [{ name: 'Engineering', code: '10' }] },
+        { name: 'Ohne Farbe', code: '', color: 'kaputt' },
+      ],
       [{ name: 'Reise' }],
     )
     const projects = await db.projects.orderBy('sortOrder').toArray()
@@ -164,7 +186,12 @@ describe('Export/Import', () => {
     expect(projects[2].color).toMatch(/^#[0-9a-f]{6}$/)
     expect(new Set(projects.map((p) => p.id)).size).toBe(3)
     expect(projects[0].id).toBe(own.id)
-    expect((await db.activityTypes.orderBy('sortOrder').toArray()).map((a) => a.name)).toEqual(['Büro', 'Meeting', 'Reise'])
+    const acts = await db.activityTypes.orderBy('sortOrder').toArray()
+    const namesOf = (projectId: string | null) => acts.filter((a) => a.projectId === projectId).map((a) => a.name)
+    expect(namesOf(null)).toEqual(['Büro', 'Meeting', 'Reise'])
+    expect(acts.find((a) => a.projectId === projects[1].id)).toMatchObject({ name: 'Engineering', code: '10' })
+    // ohne eigene Tätigkeiten: die (ergänzte) Standardliste
+    expect(namesOf(projects[2].id)).toEqual(['Büro', 'Meeting', 'Reise'])
   })
 
   it('ergänzt fehlende Felder mit Standardwerten', () => {
@@ -354,5 +381,92 @@ describe('Aufgaben', () => {
     await undoTaskImport(result)
     expect((await db.tasks.toArray()).map((t) => t.title)).toEqual(['Schon da'])
     expect(await db.projects.count()).toBe(1)
+  })
+})
+
+describe('Tätigkeiten je Projekt (Datenstand 9 / Dexie v10)', () => {
+  const v8 = {
+    projects: [
+      { id: 'epis', name: 'Epis', code: '', color: '#000', active: true, sortOrder: 0, createdAt: '' },
+      { id: 'nie', name: 'Nie', code: '', color: '#000', active: true, sortOrder: 1, createdAt: '' },
+    ],
+    activityTypes: [
+      { id: 'buero', name: 'Büro', active: true, sortOrder: 0 },
+      { id: 'meeting', name: 'Meeting', active: true, sortOrder: 1 },
+    ],
+    days: [
+      {
+        date: '2026-10-19',
+        timeMode: 'total',
+        blocks: [],
+        totalMinutes: 60,
+        allocations: [{ id: 'a', projectId: 'epis', activityTypeId: 'meeting', mode: 'rest', value: 0, note: '' }],
+        fillStrategy: 'none',
+        absence: null,
+        note: '',
+        updatedAt: '',
+      },
+    ],
+  }
+  const check = (acts: ActivityType[], allocationTypeId: string) => {
+    const named = (projectId: string | null) => acts.filter((a) => a.projectId === projectId).map((a) => a.name)
+    expect(named(null)).toEqual(['Büro', 'Meeting'])
+    expect(named('epis')).toEqual(['Meeting'])
+    expect(named('nie')).toEqual(['Büro', 'Meeting'])
+    expect(acts.find((a) => a.id === allocationTypeId)).toMatchObject({ projectId: 'epis', name: 'Meeting', code: '' })
+  }
+
+  it('Sicherung von Stand 8 wird umgestellt', () => {
+    const file = parseBackup(JSON.stringify({ app: 'stundenbogen', schemaVersion: 8, data: v8 }))
+    check(file.data.activityTypes, file.data.days[0].allocations[0].activityTypeId)
+  })
+
+  it('Datenbank v9 → v10 stellt um', async () => {
+    const { default: Dexie } = await import('dexie')
+    const { StundenbogenDB } = await import('./db')
+    const old = new Dexie('upgrade-v10')
+    old.version(9).stores({
+      projects: 'id, sortOrder',
+      activityTypes: 'id, sortOrder',
+      days: 'date',
+      settings: 'id',
+      meta: 'key',
+      tasks: 'id, projectId, parentId, sortOrder',
+    })
+    await old.table('projects').bulkPut(v8.projects)
+    await old.table('activityTypes').bulkPut(v8.activityTypes)
+    await old.table('days').bulkPut(v8.days)
+    old.close()
+    const upgraded = new StundenbogenDB('upgrade-v10')
+    const acts = await upgraded.activityTypes.orderBy('sortOrder').toArray()
+    check(acts, (await upgraded.days.get('2026-10-19'))!.allocations[0].activityTypeId)
+    expect(await upgraded.activityTypes.where('projectId').equals('epis').count()).toBe(1)
+    upgraded.close()
+  })
+
+  it('neues Projekt bekommt die Standardliste; Löschregeln; Projekt löschen nimmt Tätigkeiten mit', async () => {
+    const p = await createProject({ name: 'Epis' })
+    const own = () => db.activityTypes.where('projectId').equals(p.id).sortBy('sortOrder')
+    expect((await own()).map((a) => a.name)).toEqual(['Büro', 'Meeting'])
+    const eng = await createActivityType('Engineering', p.id, '10')
+    expect(eng).toMatchObject({ projectId: p.id, code: '10', sortOrder: 2 })
+    // Standardliste bleibt unberührt
+    expect((await db.activityTypes.toArray()).filter((a) => a.projectId === null)).toHaveLength(2)
+
+    const [buero, meeting] = await own()
+    await updateDay('2026-10-19', (d) => ({
+      ...d,
+      allocations: [{ id: 'x', projectId: p.id, activityTypeId: buero.id, mode: 'rest', value: 0, note: '' }],
+    }))
+    expect(await deleteActivityType(buero.id)).toBe(false) // gebucht
+    expect(await deleteActivityType(meeting.id)).toBe(true)
+    expect(await updateActivityType(eng.id, { active: false })).toBe(true)
+    expect(await updateActivityType(buero.id, { active: false })).toBe(false) // letzte aktive
+    await reorderActivityType(eng.id, buero.id)
+    expect((await own()).map((a) => a.name)).toEqual(['Engineering', 'Büro'])
+
+    const q = await createProject({ name: 'Leer' })
+    expect(await deleteProject(q.id)).toBe(true)
+    expect(await db.activityTypes.where('projectId').equals(q.id).count()).toBe(0)
   })
 })

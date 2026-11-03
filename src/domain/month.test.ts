@@ -13,8 +13,8 @@ const project = (id: string, sortOrder: number, active = true): Project => ({
   createdAt: '',
 })
 const activities: ActivityType[] = [
-  { id: 'buero', name: 'Büro', active: true, sortOrder: 0 },
-  { id: 'meeting', name: 'Meeting', active: true, sortOrder: 1 },
+  { id: 'buero', projectId: 'a', name: 'Büro', code: '10', active: true, sortOrder: 0 },
+  { id: 'meeting', projectId: 'a', name: 'Meeting', code: '', active: true, sortOrder: 1 },
 ]
 const alloc = (id: string, projectId: string, activityTypeId: string, mode: Allocation['mode'], value = 0): Allocation => ({
   id,
@@ -93,8 +93,8 @@ describe('Export', () => {
       { includeEmptyActive: false },
     )
     const table = monthGridToTable(grid)
-    expect(table[0].slice(0, 4)).toEqual(['Projekt', 'Nr.', 'Tätigkeit', 'Do 01.10.'])
-    expect(table[1].slice(0, 4)).toEqual(['Projekt a', 'P-a', 'Büro', '8:18'])
+    expect(table[0].slice(0, 5)).toEqual(['Projekt', 'Nr.', 'Tätigkeit', 'Tätigkeit Nr.', 'Do 01.10.'])
+    expect(table[1].slice(0, 5)).toEqual(['Projekt a', 'P-a', 'Büro', '10', '8:18'])
     expect(table[1].at(-1)).toBe('8:18')
   })
 

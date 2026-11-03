@@ -1,6 +1,7 @@
 import Dexie, { type Table } from 'dexie'
 import type { ActivityType, Day, Project, Settings, Task } from '../domain/types'
-import { upgradeAllocationV5 } from '../domain/legacy'
+import { newId } from '../domain/id'
+import { splitActivitiesPerProject, upgradeAllocationV5 } from '../domain/legacy'
 import { TEMPLATE_8H18, TEMPLATE_9H } from '../domain/plan'
 import { DEFAULT_WEEKLY_MAX } from '../domain/target'
 
@@ -101,6 +102,21 @@ export class StundenbogenDB extends Dexie {
           .modify((t: { starred?: unknown }) => {
             if (typeof t.starred !== 'boolean') t.starred = false
           })
+      })
+    // v10: Tätigkeiten je Projekt (ActivityType.projectId/code) – Standardliste + Kopien, Buchungen umgeschrieben.
+    this.version(10)
+      .stores({ activityTypes: 'id, projectId, sortOrder' })
+      .upgrade(async (tx) => {
+        const days = await tx.table('days').toArray()
+        const settings = (await tx.table('settings').get('settings')) ?? null
+        const result = splitActivitiesPerProject(
+          { projects: await tx.table('projects').toArray(), activityTypes: await tx.table('activityTypes').toArray(), days, settings },
+          newId,
+        )
+        await tx.table('activityTypes').clear()
+        await tx.table('activityTypes').bulkPut(result.activityTypes)
+        await tx.table('days').bulkPut(result.days)
+        if (result.settings) await tx.table('settings').put(result.settings)
       })
   }
 }

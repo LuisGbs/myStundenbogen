@@ -9,6 +9,7 @@ import {
 import { HOLIDAY_REGIONS, holidaysInYear } from '../../domain/holidays'
 import { isValidTemplate } from '../../domain/plan'
 import { weeklyTarget } from '../../domain/target'
+import { activitiesOf, activityLabel } from '../../domain/activities'
 import type { ActivityType, HolidayRegion, Minutes, Project, Settings, TemplateBlock } from '../../domain/types'
 import { Icon } from '../../components/Icon'
 import { CommitInput, TimeInput } from '../../components/inputs'
@@ -198,7 +199,7 @@ function FillCard({ settings, projects, activityTypes }: { settings: Settings; p
   const value = settings.defaultFill ? `${settings.defaultFill.projectId}|${settings.defaultFill.activityTypeId}` : ''
   const combos = projects
     .filter((p) => p.active || p.id === settings.defaultFill?.projectId)
-    .flatMap((p) => activityTypes.map((a) => ({ p, a })))
+    .flatMap((p) => activitiesOf(p.id, activityTypes, settings.defaultFill?.activityTypeId).map((a) => ({ p, a })))
   return (
     <section className="card">
       <header className="card__head">
@@ -217,7 +218,7 @@ function FillCard({ settings, projects, activityTypes }: { settings: Settings; p
           <option value="">– keins –</option>
           {combos.map(({ p, a }) => (
             <option key={`${p.id}|${a.id}`} value={`${p.id}|${a.id}`}>
-              {p.name} · {a.name}
+              {p.name} · {activityLabel(a)}
             </option>
           ))}
         </select>
