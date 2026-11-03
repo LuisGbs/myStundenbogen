@@ -165,7 +165,9 @@ describe('Export/Import', () => {
         activityTypes: [{ name: 'Reise' }],
       }),
     )
-    expect(v1.projects[0].activities).toEqual([{ name: 'Reise', code: '' }])
+    // ältere Formate: der Name war der offizielle
+    expect(v1.projects[0]).toMatchObject({ name: 'Beta', officialName: 'Beta' })
+    expect(v1.projects[0].activities).toEqual([{ name: 'Reise', officialName: 'Reise', code: '' }])
 
     expect(() => parseProjectList('{"app":"anders"}')).toThrow(ImportError)
     expect(() => parseProjectList('{"app":"stundenbogen","kind":"projects"}')).toThrow('Projekte')
@@ -468,5 +470,54 @@ describe('Tätigkeiten je Projekt (Datenstand 9 / Dexie v10)', () => {
     const q = await createProject({ name: 'Leer' })
     expect(await deleteProject(q.id)).toBe(true)
     expect(await db.activityTypes.where('projectId').equals(q.id).count()).toBe(0)
+  })
+})
+
+describe('Offizieller Name (Datenstand 10 / Dexie v11)', () => {
+  it('Sicherung von Stand 9: bisherige Namen werden offizielle Namen', () => {
+    const file = parseBackup(
+      JSON.stringify({
+        app: 'stundenbogen',
+        schemaVersion: 9,
+        data: {
+          projects: [{ id: 'p', name: 'Epis' }],
+          activityTypes: [{ id: 'a', projectId: 'p', name: 'Engineering', code: '10' }],
+          days: [],
+        },
+      }),
+    )
+    expect(file.data.projects[0]).toMatchObject({ name: 'Epis', officialName: 'Epis' })
+    expect(file.data.activityTypes[0]).toMatchObject({ name: 'Engineering', officialName: 'Engineering', code: '10' })
+  })
+
+  it('Datenbank v10 → v11 übernimmt die Namen', async () => {
+    const { default: Dexie } = await import('dexie')
+    const { StundenbogenDB } = await import('./db')
+    const old = new Dexie('upgrade-v11')
+    old.version(10).stores({
+      projects: 'id, sortOrder',
+      activityTypes: 'id, projectId, sortOrder',
+      days: 'date',
+      settings: 'id',
+      meta: 'key',
+      tasks: 'id, projectId, parentId, sortOrder',
+    })
+    await old.table('projects').put({ id: 'p', name: 'Epis', code: '', color: '#000', active: true, sortOrder: 0, createdAt: '' })
+    await old.table('activityTypes').put({ id: 'a', projectId: 'p', name: 'Meeting', code: '', active: true, sortOrder: 0 })
+    old.close()
+    const upgraded = new StundenbogenDB('upgrade-v11')
+    expect((await upgraded.projects.get('p'))?.officialName).toBe('Epis')
+    expect((await upgraded.activityTypes.get('a'))?.officialName).toBe('Meeting')
+    upgraded.close()
+  })
+
+  it('neues Projekt: offizieller Name leer bzw. angegeben; Standardliste vererbt ihren', async () => {
+    const template = (await db.activityTypes.toArray()).find((a) => a.name === 'Büro')!
+    await updateActivityType(template.id, { officialName: 'Allgemein' })
+    const p = await createProject({ name: 'Rollen überarbeiten', officialName: ' Epis Allg. ', code: '2295/90' })
+    expect(p.officialName).toBe('Epis Allg.')
+    const own = await db.activityTypes.where('projectId').equals(p.id).toArray()
+    expect(own.find((a) => a.name === 'Büro')?.officialName).toBe('Allgemein')
+    expect((await createProject({ name: 'Ohne' })).officialName).toBe('')
   })
 })

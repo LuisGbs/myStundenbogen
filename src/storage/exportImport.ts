@@ -1,7 +1,7 @@
 import { isISODate } from '../domain/date'
 import { emptyDay } from '../domain/day'
 import { newId } from '../domain/id'
-import { splitActivitiesPerProject, upgradeAllocationV5 } from '../domain/legacy'
+import { addOfficialName, splitActivitiesPerProject, upgradeAllocationV5 } from '../domain/legacy'
 import type { ProjectListFile, SharedActivityType, SharedProject } from '../domain/projectTransfer'
 import type { ActivityType, Day, Project, Settings, Task } from '../domain/types'
 import { db } from './db'
@@ -12,7 +12,7 @@ import { defaultSettings } from './seed'
  * Version des Sicherungsformats. Bei jeder Änderung am Datenmodell erhöhen und
  * in MIGRATIONS eine Funktion „von Version n auf n+1“ ergänzen.
  */
-export const SCHEMA_VERSION = 9
+export const SCHEMA_VERSION = 10
 
 const MIGRATIONS: Record<number, (data: Record<string, unknown>) => Record<string, unknown>> = {
   // 1 → 2: Allocation.blockId ist neu und optional – alte Zeilen bleiben „frei verteilt“.
@@ -48,6 +48,12 @@ const MIGRATIONS: Record<number, (data: Record<string, unknown>) => Record<strin
       },
       newId,
     ),
+  // 9 → 10: offizieller Name (Firmensoftware) – bisheriger Name wird übernommen.
+  9: (data) => ({
+    ...data,
+    projects: Array.isArray(data.projects) ? data.projects.map(addOfficialName) : data.projects,
+    activityTypes: Array.isArray(data.activityTypes) ? data.activityTypes.map(addOfficialName) : data.activityTypes,
+  }),
 }
 
 export interface BackupData {
@@ -124,11 +130,11 @@ export function parseBackup(text: string): BackupFile {
 
   const projects = asArray(data.projects, 'Projekte').map((p): Project => {
     if (typeof p.id !== 'string' || typeof p.name !== 'string') throw new ImportError('Ungültiges Projekt in der Sicherung.')
-    return { code: '', color: '#2563eb', active: true, sortOrder: 0, createdAt: '', ...p } as Project
+    return { officialName: '', code: '', color: '#2563eb', active: true, sortOrder: 0, createdAt: '', ...p } as Project
   })
   const activityTypes = asArray(data.activityTypes, 'Tätigkeiten').map((a): ActivityType => {
     if (typeof a.id !== 'string' || typeof a.name !== 'string') throw new ImportError('Ungültige Tätigkeit in der Sicherung.')
-    return { projectId: null, code: '', active: true, sortOrder: 0, ...a } as ActivityType
+    return { projectId: null, officialName: '', code: '', active: true, sortOrder: 0, ...a } as ActivityType
   })
   const days = asArray(data.days, 'Tage').map((d): Day => {
     if (typeof d.date !== 'string' || !isISODate(d.date)) throw new ImportError('Ungültiger Tag in der Sicherung.')
@@ -193,7 +199,13 @@ export function parseProjectList(text: string): ProjectListFile {
   const source = raw.kind === 'projects' ? raw : isRecord(raw.data) ? raw.data : null
   if (!source) throw new ImportError('In der Datei wurden keine Projekte gefunden.')
 
-  const activity = (a: Record<string, unknown>): SharedActivityType => ({ name: str(a.name).trim(), code: str(a.code).trim() })
+  // ältere Dateien kennen keinen offiziellen Namen – dort war der Name der offizielle
+  const official = (x: Record<string, unknown>) => (typeof x.officialName === 'string' ? x.officialName : str(x.name)).trim()
+  const activity = (a: Record<string, unknown>): SharedActivityType => ({
+    name: str(a.name).trim(),
+    officialName: official(a),
+    code: str(a.code).trim(),
+  })
   const named = (list: SharedActivityType[]) => list.filter((a) => a.name !== '')
   const rawTypes = Array.isArray(source.activityTypes) ? asArray(source.activityTypes, 'Tätigkeiten') : []
   // Sicherung ab Stand 9: Tätigkeiten hängen über projectId an den Projekten
@@ -217,14 +229,14 @@ export function parseProjectList(text: string): ProjectListFile {
           ? named(asArray(p.activities, 'Tätigkeiten').map(activity))
           : []
       const activities = own.length > 0 ? own : activityTypes.length > 0 ? activityTypes : undefined
-      return { name: str(p.name).trim(), code: str(p.code).trim(), color: str(p.color), activities }
+      return { name: str(p.name).trim(), officialName: official(p), code: str(p.code).trim(), color: str(p.color), activities }
     })
     .filter((p) => p.name !== '')
 
   return {
     app: 'stundenbogen',
     kind: 'projects',
-    schemaVersion: 2,
+    schemaVersion: 3,
     exportedAt: str(raw.exportedAt),
     projects,
     activityTypes,

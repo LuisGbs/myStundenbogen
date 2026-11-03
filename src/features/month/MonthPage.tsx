@@ -11,6 +11,7 @@ import {
   type YearMonth,
 } from '../../domain/date'
 import { formatDuration, formatSignedDuration } from '../../domain/duration'
+import { officialName } from '../../domain/labels'
 import {
   buildMonthGrid,
   monthGridToTable,
@@ -243,8 +244,9 @@ function GroupRows({
       <tr className={`group-row${project.active ? '' : ' is-inactive'}`}>
         <th className="sticky-col" scope="rowgroup">
           <span className="dot" style={{ background: project.color }} />
-          <span className="group-row__name">{project.name}</span>
+          <span className="group-row__name">{officialName(project)}</span>
           {project.code && <span className="group-row__code">{project.code}</span>}
+          {officialName(project) !== project.name && <span className="own-name">{project.name}</span>}
         </th>
         {days.map((d, i) => (
           <td key={d.date} className={columnClass(d, i)}>
@@ -256,8 +258,11 @@ function GroupRows({
       {group.rows.map((r) => (
         <tr key={r.activityType.id} className="sub-row">
           <th className="sticky-col" scope="row">
-            {r.activityType.name}
+            {officialName(r.activityType)}
             {r.activityType.code && <span className="group-row__code">{r.activityType.code}</span>}
+            {officialName(r.activityType) !== r.activityType.name && (
+              <span className="own-name">{r.activityType.name}</span>
+            )}
           </th>
           {days.map((d, i) => (
             <td

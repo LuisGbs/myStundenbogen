@@ -106,3 +106,45 @@
 .act-list__add {
   margin-bottom: 0;
 }
+
+/* Firmensoftware: offizieller Name + Nr. klein unter dem eigenen Namen */
+.official-fields {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding-left: 2.2rem;
+  margin-top: -0.15rem;
+}
+
+.item-row > .official-fields {
+  padding-left: 4.6rem;
+}
+
+.official-fields__label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.official-fields__name {
+  flex: 1 1 10rem;
+  max-width: 22rem;
+}
+
+.official-fields__code {
+  flex: 0 1 7rem;
+}
+
+.add-form__official {
+  flex: 1 1 10rem;
+}
+
+@media (max-width: 560px) {
+  .official-fields,
+  .item-row > .official-fields {
+    padding-left: 0;
+  }
+}

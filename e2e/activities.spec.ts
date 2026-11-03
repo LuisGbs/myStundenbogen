@@ -21,15 +21,15 @@ test('Tätigkeiten je Projekt: eigene Auswahl am Tag, Projektwechsel, Nummer im 
   // Epis: + Engineering (10); Revit: Büro löschen → nur Meeting
   await page.getByRole('button', { name: 'Tätigkeiten von Epis' }).click()
   const epis = page.getByTestId('activities-Epis')
-  await expect(epis.getByLabel('Name der Tätigkeit')).toHaveCount(2) // Kopie der Standardliste
+  await expect(epis.getByLabel('Name der Tätigkeit', { exact: true })).toHaveCount(2) // Kopie der Standardliste
   await page.getByLabel('Neue Tätigkeit für Epis', { exact: true }).fill('Engineering')
   await page.getByLabel('Nummer der neuen Tätigkeit für Epis').fill('10')
   await epis.getByRole('button', { name: 'Hinzufügen' }).click()
-  await expect(epis.getByLabel('Name der Tätigkeit')).toHaveCount(3)
+  await expect(epis.getByLabel('Name der Tätigkeit', { exact: true })).toHaveCount(3)
   await page.getByRole('button', { name: 'Tätigkeiten von Revit' }).click()
   const revit = page.getByTestId('activities-Revit')
   await revit.getByRole('button', { name: 'Büro löschen' }).click()
-  await expect(revit.getByLabel('Name der Tätigkeit')).toHaveCount(1)
+  await expect(revit.getByLabel('Name der Tätigkeit', { exact: true })).toHaveCount(1)
   await expect(page.getByRole('button', { name: 'Tätigkeiten von Revit' })).toContainText('Tätigkeiten (1)')
 
   // Tag: Gesamtzeit 8:18
@@ -138,5 +138,5 @@ test('alte Sicherung (Stand 8, globale Tätigkeitsarten) wird umgestellt – Buc
   await page.goto('/#/projekte')
   await expect(page.getByRole('button', { name: 'Tätigkeiten von Epis' })).toContainText('Tätigkeiten (2)')
   await expect(page.getByRole('button', { name: 'Tätigkeiten von Nie gebucht' })).toContainText('Tätigkeiten (2)')
-  await expect(page.getByTestId('activities-Standardliste').getByLabel('Name der Tätigkeit')).toHaveCount(2)
+  await expect(page.getByTestId('activities-Standardliste').getByLabel('Name der Tätigkeit', { exact: true })).toHaveCount(2)
 })

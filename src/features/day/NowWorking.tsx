@@ -3,7 +3,7 @@ import { clockToMinutes, formatDuration, nowClock } from '../../domain/duration'
 import { newId } from '../../domain/id'
 import { activeAllocation, runningBlockId, startWorkingOn, stopWorking } from '../../domain/nowWorking'
 import { clockIn } from '../../domain/plan'
-import { activitiesOf, activityLabel, defaultActivityId } from '../../domain/activities'
+import { activitiesOf, defaultActivityId } from '../../domain/activities'
 import type { ActivityType, Day, Project } from '../../domain/types'
 import { Icon } from '../../components/Icon'
 import { Segmented } from '../../components/Segmented'
@@ -91,7 +91,7 @@ export function NowWorking({ day, result, projects, activityTypes, onChange }: P
             >
               {types.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {activityLabel(a)}
+                  {a.name}
                 </option>
               ))}
             </select>

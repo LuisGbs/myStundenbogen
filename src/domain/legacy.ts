@@ -94,3 +94,13 @@ export function splitActivitiesPerProject<T extends LegacyData>(data: T, makeId:
   }
   return { ...data, activityTypes: [...templates, ...copies], days, settings }
 }
+
+/**
+ * Datenstand 9 → 10 (Dexie v11): Projekte und Tätigkeiten bekommen einen
+ * offiziellen Namen (Firmensoftware). Bisherige Namen waren die offiziellen –
+ * sie werden übernommen, der eigene Name bleibt zunächst gleich.
+ */
+export function addOfficialName<T extends { name?: unknown; officialName?: unknown }>(item: T): T {
+  if (typeof item.officialName === 'string') return item
+  return { ...item, officialName: typeof item.name === 'string' ? item.name : '' }
+}

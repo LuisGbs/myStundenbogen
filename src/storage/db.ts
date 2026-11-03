@@ -1,7 +1,7 @@
 import Dexie, { type Table } from 'dexie'
 import type { ActivityType, Day, Project, Settings, Task } from '../domain/types'
 import { newId } from '../domain/id'
-import { splitActivitiesPerProject, upgradeAllocationV5 } from '../domain/legacy'
+import { addOfficialName, splitActivitiesPerProject, upgradeAllocationV5 } from '../domain/legacy'
 import { TEMPLATE_8H18, TEMPLATE_9H } from '../domain/plan'
 import { DEFAULT_WEEKLY_MAX } from '../domain/target'
 
@@ -117,6 +117,19 @@ export class StundenbogenDB extends Dexie {
         await tx.table('activityTypes').bulkPut(result.activityTypes)
         await tx.table('days').bulkPut(result.days)
         if (result.settings) await tx.table('settings').put(result.settings)
+      })
+    // v11: offizieller Name (Firmensoftware) für Projekte und Tätigkeiten – bisheriger Name wird übernommen.
+    this.version(11)
+      .stores({})
+      .upgrade(async (tx) => {
+        for (const table of ['projects', 'activityTypes']) {
+          await tx
+            .table(table)
+            .toCollection()
+            .modify((x: { name?: unknown; officialName?: unknown }) => {
+              Object.assign(x, addOfficialName(x))
+            })
+        }
       })
   }
 }

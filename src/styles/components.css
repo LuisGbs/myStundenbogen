@@ -146,6 +146,13 @@ select.input {
   font-variant-numeric: tabular-nums;
 }
 
+/* kleine Nebenfelder, z.B. offizieller Name und Nummer */
+.input.input--small {
+  height: 28px;
+  padding: 0 0.45rem;
+  font-size: 0.8rem;
+}
+
 .input--amount {
   width: 5.5rem;
   text-align: right;

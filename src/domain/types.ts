@@ -9,7 +9,10 @@ export type Minutes = number
 
 export interface Project {
   id: string
+  /** Eigener Name (wie man beim Erfassen denkt, z.B. „Rollen überarbeiten“) */
   name: string
+  /** Name in der Firmensoftware; leer = wie `name` */
+  officialName: string
   /** Projektnummer / Kostenstelle aus der Firmensoftware (optional). */
   code: string
   color: string
@@ -26,7 +29,10 @@ export interface ActivityType {
   id: string
   /** Projekt, zu dem die Tätigkeit gehört; null = Standardliste (nicht buchbar) */
   projectId: string | null
+  /** Eigener Name */
   name: string
+  /** Name in der Firmensoftware; leer = wie `name` */
+  officialName: string
   /** Nummer der Unter-Kostenstelle (optional) */
   code: string
   active: boolean

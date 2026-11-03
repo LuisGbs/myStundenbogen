@@ -40,10 +40,12 @@ test('Projekt anlegen → Zeit stempeln → verteilen → Monat → Export/Impor
   await expect(page.getByTestId('worked-total')).toHaveText('8:18')
 
   // Alpha: 50 %
-  await page.getByLabel('Projekt hinzufügen').selectOption({ label: 'Alpha (P-100)' })
+  await page.getByLabel('Projekt hinzufügen').selectOption({ label: 'Alpha' })
   const rows = page.getByTestId('alloc-row')
   await expect(rows).toHaveCount(1)
   await expect(rows.nth(0).getByTestId('alloc-result')).toHaveText('8:18') // erste Zeile = Rest
+  // Nummer steht klein in der Zeile (Buchungsziel in der Firmensoftware)
+  await expect(rows.nth(0).getByTestId('alloc-official')).toHaveText('Alpha · P-100 / Büro')
   await rows.nth(0).getByRole('radio', { name: '%' }).click()
   await rows.nth(0).getByLabel('Dauer oder Anteil').fill('50')
   await rows.nth(0).getByLabel('Dauer oder Anteil').press('Enter')

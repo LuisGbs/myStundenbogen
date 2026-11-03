@@ -41,7 +41,7 @@ export function defaultActivityId(projectId: string, all: ActivityType[], prefer
 export function copyTemplate(projectId: string, all: ActivityType[], makeId: () => string): ActivityType[] {
   return templateActivities(all)
     .filter((a) => a.active)
-    .map((a, i) => ({ id: makeId(), projectId, name: a.name, code: a.code, active: true, sortOrder: i }))
+    .map((a, i) => ({ id: makeId(), projectId, name: a.name, officialName: a.officialName, code: a.code, active: true, sortOrder: i }))
 }
 
 /** Anzeigename mit Nummer: „Engineering (10)“. */

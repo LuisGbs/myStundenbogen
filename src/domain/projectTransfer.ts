@@ -1,4 +1,5 @@
 import { allActivitiesOf, templateActivities } from './activities'
+import { officialName } from './labels'
 import type { ActivityType, Project } from './types'
 
 /**
@@ -11,11 +12,15 @@ import type { ActivityType, Project } from './types'
  */
 export interface SharedActivityType {
   name: string
+  /** Name in der Firmensoftware (ab Format 3); fehlt = wie name */
+  officialName?: string
   code?: string
 }
 
 export interface SharedProject {
   name: string
+  /** Name in der Firmensoftware (ab Format 3); fehlt = wie name */
+  officialName?: string
   code: string
   color: string
   /** Tätigkeiten des Projekts; fehlt = Standardliste des Empfängers */
@@ -25,22 +30,23 @@ export interface SharedProject {
 export interface ProjectListFile {
   app: 'stundenbogen'
   kind: 'projects'
-  schemaVersion: 1 | 2
+  schemaVersion: 1 | 2 | 3
   exportedAt: string
   projects: SharedProject[]
   activityTypes: SharedActivityType[]
 }
 
-const shared = (a: ActivityType): SharedActivityType => ({ name: a.name, code: a.code })
+const shared = (a: ActivityType): SharedActivityType => ({ name: a.name, officialName: a.officialName, code: a.code })
 
 export function buildProjectList(projects: Project[], activityTypes: ActivityType[]): ProjectListFile {
   return {
     app: 'stundenbogen',
     kind: 'projects',
-    schemaVersion: 2,
+    schemaVersion: 3,
     exportedAt: new Date().toISOString(),
     projects: projects.map((p) => ({
       name: p.name,
+      officialName: p.officialName,
       code: p.code,
       color: p.color,
       activities: allActivitiesOf(p.id, activityTypes).filter((a) => a.active).map(shared),
@@ -85,9 +91,13 @@ export function planProjectImport(existing: Project[], incoming: SharedProject[]
   return dedupe(incoming.filter((p) => p.name.trim() !== ''), projectKey).map((item) => {
     const code = normalizeKey(item.code)
     const name = normalizeKey(item.name)
+    const official = normalizeKey(item.officialName ?? '')
     const byCode = code ? existing.find((p) => normalizeKey(p.code) === code) : undefined
     if (byCode) return { item, status: 'exists', match: byCode, selected: false }
-    const byName = existing.find((p) => normalizeKey(p.name) === name)
+    // gleicher eigener oder gleicher offizieller Name
+    const byName =
+      existing.find((p) => normalizeKey(p.name) === name) ??
+      (official ? existing.find((p) => normalizeKey(officialName(p)) === official) : undefined)
     if (byName) {
       const differentCode = code !== '' && normalizeKey(byName.code) !== '' && normalizeKey(byName.code) !== code
       return { item, status: differentCode ? 'similar' : 'exists', match: byName, selected: false }

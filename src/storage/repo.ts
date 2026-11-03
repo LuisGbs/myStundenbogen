@@ -45,7 +45,7 @@ async function nextSortOrder(table: Table<Sortable, string>): Promise<number> {
 
 /** Neues Projekt; es bekommt die Tätigkeiten der Standardliste (bzw. `activities`). */
 export async function createProject(
-  input: { name: string; code?: string },
+  input: { name: string; code?: string; officialName?: string },
   activities?: SharedActivityType[],
 ): Promise<Project> {
   return db.transaction('rw', db.projects, db.activityTypes, async () => {
@@ -53,6 +53,7 @@ export async function createProject(
     const project: Project = {
       id: newId(),
       name: input.name.trim(),
+      officialName: (input.officialName ?? '').trim(),
       code: (input.code ?? '').trim(),
       color: nextProjectColor(all.map((p) => p.color)),
       active: true,
@@ -72,6 +73,7 @@ async function addProjectActivities(projectId: string, activities?: SharedActivi
         id: newId(),
         projectId,
         name: a.name.trim(),
+        officialName: (a.officialName ?? a.name).trim(),
         code: (a.code ?? '').trim(),
         active: true,
         sortOrder: i,
@@ -123,6 +125,7 @@ export async function importProjectList(projects: SharedProject[], activityTypes
         id: newId(),
         projectId: null,
         name: a.name.trim(),
+        officialName: (a.officialName ?? a.name).trim(),
         code: (a.code ?? '').trim(),
         active: true,
         sortOrder: typeOrder++,
@@ -137,6 +140,7 @@ export async function importProjectList(projects: SharedProject[], activityTypes
       await db.projects.add({
         id,
         name: p.name.trim(),
+        officialName: (p.officialName ?? p.name).trim(),
         code: p.code.trim(),
         color,
         active: true,
@@ -152,13 +156,19 @@ export async function importProjectList(projects: SharedProject[], activityTypes
 
 const sameGroup = (projectId: string | null) => (a: ActivityType) => a.projectId === projectId
 
-export async function createActivityType(name: string, projectId: string | null = null, code = ''): Promise<ActivityType> {
+export async function createActivityType(
+  name: string,
+  projectId: string | null = null,
+  code = '',
+  officialName = '',
+): Promise<ActivityType> {
   return db.transaction('rw', db.activityTypes, async () => {
     const group = (await db.activityTypes.toArray()).filter(sameGroup(projectId))
     const activityType: ActivityType = {
       id: newId(),
       projectId,
       name: name.trim(),
+      officialName: officialName.trim(),
       code: code.trim(),
       active: true,
       sortOrder: group.reduce((max, a) => Math.max(max, a.sortOrder + 1), 0),
@@ -174,7 +184,7 @@ export async function createActivityType(name: string, projectId: string | null 
  */
 export async function updateActivityType(
   id: string,
-  patch: Partial<Pick<ActivityType, 'name' | 'code' | 'active'>>,
+  patch: Partial<Pick<ActivityType, 'name' | 'officialName' | 'code' | 'active'>>,
 ): Promise<boolean> {
   return db.transaction('rw', db.activityTypes, async () => {
     const current = await db.activityTypes.get(id)
@@ -386,6 +396,7 @@ export async function importTasks(groups: ImportGroup[], today: ISODate): Promis
       const project: Project = {
         id: newId(),
         name: target.name.trim(),
+        officialName: '',
         code: '',
         color: nextProjectColor(colors),
         active: true,

@@ -1,3 +1,4 @@
+import { officialName } from './labels'
 import { taskTree } from './tasks'
 import type { Project, Task } from './types'
 
@@ -66,6 +67,8 @@ export function matchProject(heading: string, projects: Project[]): string | nul
     projects.find((p) => normalize(p.name) === name)?.id ??
     projects.find((p) => normalize(p.name) === full)?.id ??
     (code ? projects.find((p) => p.code && normalize(p.code) === code)?.id : undefined) ??
+    // auch der Name aus der Firmensoftware wird erkannt
+    projects.find((p) => normalize(officialName(p)) === name || normalize(officialName(p)) === full)?.id ??
     null
   )
 }
@@ -257,7 +260,14 @@ export const FORMAT_EXAMPLE = `# Projektname
 export function llmPrompt(projects: Project[]): string {
   const active = projects.filter((p) => p.active)
   const projectLines = active.length
-    ? active.map((p) => `- ${p.code ? `${p.name} (${p.code})` : p.name}`).join('\n')
+    ? active
+        .map((p) => {
+          const label = p.code ? `${p.name} (${p.code})` : p.name
+          // offizieller Name hilft dem LLM beim Zuordnen, Überschrift bleibt der eigene Name
+          return officialName(p) !== p.name ? `${label} – offiziell: ${officialName(p)}` : label
+        })
+        .map((line) => `- ${line}`)
+        .join('\n')
     : '- (noch keine Projekte angelegt)'
   return `Wandle meine ToDo-Liste (ganz unten) in genau das folgende Textformat um. Es wird von einem Programm eingelesen – halte dich deshalb exakt an die Regeln.
 
@@ -265,7 +275,7 @@ FORMAT
 ${FORMAT_EXAMPLE}
 
 REGELN
-1. Jedes Projekt beginnt mit einer Zeile „# Projektname“. Verwende als Projektname AUSSCHLIESSLICH einen Namen aus der Liste „Meine Projekte“ unten – genau so geschrieben wie dort (die Projektnummer in Klammern darfst du mitschreiben).
+1. Jedes Projekt beginnt mit einer Zeile „# Projektname“. Verwende als Projektname AUSSCHLIESSLICH einen Namen aus der Liste „Meine Projekte“ unten – genau so geschrieben wie dort (die Projektnummer in Klammern darfst du mitschreiben, den Teil „– offiziell: …“ nicht). Der offizielle Name hilft dir nur beim Zuordnen.
 2. Punkte, die du keinem Projekt sicher zuordnen kannst, kommen unter die Überschrift „# ${NO_PROJECT_HEADING}“. Erfinde keine neuen Projektnamen.
 3. Jede Aufgabe ist eine Zeile „- [ ] Text“ ohne Einrückung. Erledigte Aufgaben: „- [x] Text“.
 4. Unterpunkte, Teilschritte oder Details einer Aufgabe werden Stichpunkte: um genau 2 Leerzeichen eingerückt, ebenfalls „- [ ] Text“ bzw. „- [x] Text“. Es gibt nur diese zwei Ebenen – tiefere Ebenen fasst du zu Stichpunkten zusammen.

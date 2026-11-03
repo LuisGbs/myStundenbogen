@@ -1,5 +1,5 @@
 import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
-import { activitiesOf, activityLabel, defaultActivityId, withProject } from '../../domain/activities'
+import { activitiesOf, defaultActivityId, withProject } from '../../domain/activities'
 import { chronologicalOrder, moveAllocation, type MoveTarget, type TimelineBlock } from '../../domain/timeline'
 import {
   applyAmountInput,
@@ -10,6 +10,7 @@ import {
   type AllocationResult,
 } from '../../domain/allocation'
 import { formatDuration } from '../../domain/duration'
+import { bookingTarget } from '../../domain/labels'
 import { newId } from '../../domain/id'
 import type { ActivityType, Allocation, AllocationMode, Day, Minutes, Project, Settings } from '../../domain/types'
 import { Icon } from '../../components/Icon'
@@ -282,8 +283,9 @@ export function AllocationSection({ day, result, projects, activityTypes, settin
   )
 }
 
+/** In der Auswahl nur der eigene Name – Firmensoftware-Name und Nummer stehen klein in der Zeile. */
 function projectLabel(p: Project): string {
-  return `${p.name}${p.code ? ` (${p.code})` : ''}${p.active ? '' : ' – inaktiv'}`
+  return `${p.name}${p.active ? '' : ' – inaktiv'}`
 }
 
 /** Eingabeart einer Zeile = ihr Modus. Alle Zeilen stehen in ihrem Block; nur „Zeitleiste“ ist oben ziehbar. */
@@ -331,6 +333,10 @@ function AllocationRow({
   const projectOptions = projects.filter((p) => p.active || p.id === allocation.projectId)
   const typeOptions = activitiesOf(allocation.projectId, activityTypes, allocation.activityTypeId)
   const [noteOpen, setNoteOpen] = useState(false)
+  const target = bookingTarget(
+    project,
+    activityTypes.find((a) => a.id === allocation.activityTypeId),
+  )
   const showNote = noteOpen || allocation.note.trim() !== ''
 
   const commitValue = (text: string): string | null => {
@@ -397,7 +403,7 @@ function AllocationRow({
         >
           {typeOptions.map((a) => (
             <option key={a.id} value={a.id}>
-              {activityLabel(a)}
+              {a.name}
             </option>
           ))}
         </select>
@@ -459,6 +465,11 @@ function AllocationRow({
       >
         <Icon name="x" />
       </button>
+      {target && (
+        <div className="alloc-row__official" data-testid="alloc-official" title="So wird in der Firmensoftware gebucht">
+          {target}
+        </div>
+      )}
       {showNote && (
         <div className="alloc-row__note">
           <NoteInput
