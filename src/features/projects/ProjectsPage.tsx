@@ -13,6 +13,7 @@ import { useActivityTypes, useProjects } from '../../storage/hooks'
 import { countProjectTasks, createProject, deleteProject, reorderProject, updateProject } from '../../storage/repo'
 import { ActiveSwitch } from './ActiveSwitch'
 import { ActivityList } from './ActivityList'
+import { OfficialFields } from './OfficialFields'
 import { ExportProjectsDialog, ImportProjectsDialog } from './ProjectTransferDialog'
 import './projects.css'
 
@@ -34,6 +35,7 @@ function ProjectsCard({ projects, activityTypes }: { projects: Project[]; activi
   const [showInactive, setShowInactive] = useLocalPreference('projects.showInactive', false)
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
+  const [official, setOfficial] = useState('')
   const [dialog, setDialog] = useState<TransferDialog>(null)
   const [toast, showToast] = useToast()
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
@@ -55,9 +57,10 @@ function ProjectsCard({ projects, activityTypes }: { projects: Project[]; activi
   const add = async (e: FormEvent) => {
     e.preventDefault()
     if (!name.trim()) return
-    await createProject({ name, code })
+    await createProject({ name, code, officialName: official })
     setName('')
     setCode('')
+    setOfficial('')
   }
 
   const remove = async (p: Project) => {
@@ -130,10 +133,18 @@ function ProjectsCard({ projects, activityTypes }: { projects: Project[]; activi
       <form className="add-form" onSubmit={add}>
         <input
           className="input add-form__name"
-          placeholder="Neues Projekt, z.B. Kunde XY"
+          placeholder="Neues Projekt – dein Name, z.B. Rollen überarbeiten"
           aria-label="Projektname"
           value={name}
           onChange={(e) => setName(e.target.value)}
+        />
+        <input
+          className="input add-form__official"
+          placeholder="Offizieller Name (optional)"
+          aria-label="Offizieller Projektname"
+          title="So heißt es in der Firmensoftware – leer = wie dein Name"
+          value={official}
+          onChange={(e) => setOfficial(e.target.value)}
         />
         <input
           className="input add-form__code"
@@ -184,16 +195,6 @@ function ProjectsCard({ projects, activityTypes }: { projects: Project[]; activi
                     return trimmed
                   }}
                 />
-                <CommitInput
-                  className="input item-row__code"
-                  aria-label="Projektnummer"
-                  placeholder="Projektnr."
-                  value={p.code}
-                  onCommit={(text) => {
-                    void updateProject(p.id, { code: text.trim() })
-                    return text.trim()
-                  }}
-                />
                 <ActiveSwitch active={p.active} onChange={(active) => void updateProject(p.id, { active })} />
                 <button
                   type="button"
@@ -215,6 +216,7 @@ function ProjectsCard({ projects, activityTypes }: { projects: Project[]; activi
                 >
                   <Icon name="trash" />
                 </button>
+                <OfficialFields item={p} kind="Projekt" onChange={(patch) => void updateProject(p.id, patch)} />
                 {open && (
                   <div className="project-acts">
                     <ActivityList projectId={p.id} activities={own} owner={p.name} />

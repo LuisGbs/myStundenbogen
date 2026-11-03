@@ -6,6 +6,7 @@ import type { ActivityType, Allocation, Day, Project } from './types'
 const project = (id: string, sortOrder: number, active = true): Project => ({
   id,
   name: `Projekt ${id}`,
+  officialName: '',
   code: `P-${id}`,
   color: '#000',
   active,
@@ -13,8 +14,8 @@ const project = (id: string, sortOrder: number, active = true): Project => ({
   createdAt: '',
 })
 const activities: ActivityType[] = [
-  { id: 'buero', projectId: 'a', name: 'Büro', code: '10', active: true, sortOrder: 0 },
-  { id: 'meeting', projectId: 'a', name: 'Meeting', code: '', active: true, sortOrder: 1 },
+  { id: 'buero', projectId: 'a', name: 'Büro', officialName: '', code: '10', active: true, sortOrder: 0 },
+  { id: 'meeting', projectId: 'a', name: 'Meeting', officialName: '', code: '', active: true, sortOrder: 1 },
 ]
 const alloc = (id: string, projectId: string, activityTypeId: string, mode: Allocation['mode'], value = 0): Allocation => ({
   id,
@@ -95,7 +96,22 @@ describe('Export', () => {
     const table = monthGridToTable(grid)
     expect(table[0].slice(0, 5)).toEqual(['Projekt', 'Nr.', 'Tätigkeit', 'Tätigkeit Nr.', 'Do 01.10.'])
     expect(table[1].slice(0, 5)).toEqual(['Projekt a', 'P-a', 'Büro', '10', '8:18'])
-    expect(table[1].at(-1)).toBe('8:18')
+    expect(table[0].slice(-3)).toEqual(['Summe', 'Mein Projekt', 'Meine Tätigkeit'])
+    expect(table[1].slice(-3)).toEqual(['8:18', 'Projekt a', 'Büro'])
+    expect(table.every((row) => row.length === table[0].length)).toBe(true)
+  })
+
+  it('vorne offizielle Namen, hinten die eigenen', () => {
+    const grid = buildMonthGrid(
+      '2026-10',
+      [day('2026-10-01', 60, [alloc('1', 'a', 'buero', 'rest')])],
+      [{ ...project('a', 0), name: 'Rollen überarbeiten', officialName: 'Epis Allg.' }],
+      [{ ...activities[0], name: 'Konzept', officialName: 'Engineering' }],
+      { includeEmptyActive: false },
+    )
+    const row = monthGridToTable(grid)[1]
+    expect(row.slice(0, 4)).toEqual(['Epis Allg.', 'P-a', 'Engineering', '10'])
+    expect(row.slice(-2)).toEqual(['Rollen überarbeiten', 'Konzept'])
   })
 
   it('maskiert Trennzeichen und Anführungszeichen', () => {

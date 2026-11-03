@@ -2,7 +2,8 @@ import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { changeAllocationMode, type AllocationResult } from '../../domain/allocation'
 import { summarizeDay } from '../../domain/day'
 import { formatDuration, minutesToClock, parseDuration } from '../../domain/duration'
-import { activitiesOf, activityLabel, defaultActivityId } from '../../domain/activities'
+import { activitiesOf, defaultActivityId } from '../../domain/activities'
+import { bookingTarget } from '../../domain/labels'
 import { newId } from '../../domain/id'
 import {
   insertionBefore,
@@ -460,6 +461,7 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
           minutes={selected.mode === 'timeline' ? selected.value : (shownResult.minutes[selected.id] ?? 0)}
           maxMinutes={maxSegmentMinutes(selectedBlock, selected)}
           projectName={projectById.get(selected.projectId)?.name ?? '?'}
+          official={bookingTarget(projectById.get(selected.projectId), activityById.get(selected.activityTypeId))}
           openTasks={openTaskCounts(tasks ?? []).get(selected.projectId) ?? 0}
           color={projectById.get(selected.projectId)?.color}
           activityTypes={activitiesOf(selected.projectId, activityTypes, selected.activityTypeId)}
@@ -529,6 +531,7 @@ function SegmentPanel({
   minutes,
   maxMinutes,
   projectName,
+  official,
   openTasks,
   color,
   activityTypes,
@@ -549,6 +552,8 @@ function SegmentPanel({
   minutes: Minutes
   maxMinutes: Minutes
   projectName: string
+  /** Buchungsziel in der Firmensoftware (null = wie die eigenen Namen) */
+  official: string | null
   /** Offene Aufgaben des Projekts (Aufgaben-Reiter). */
   openTasks: number
   color: string | undefined
@@ -568,6 +573,11 @@ function SegmentPanel({
         <span className="dot" style={{ background: color ?? 'transparent' }} />
         <strong>{projectName}</strong>
         <span className="muted small">{block.label}</span>
+        {official && (
+          <span className="timeline-panel__official" data-testid="panel-official" title="So wird in der Firmensoftware gebucht">
+            {official}
+          </span>
+        )}
         {locked ? (
           <span className="badge badge--muted">gesperrt · {MODE_TEXT[allocation.mode]}</span>
         ) : blockRest ? (
@@ -625,7 +635,7 @@ function SegmentPanel({
           >
             {activityTypes.map((a) => (
               <option key={a.id} value={a.id}>
-                {activityLabel(a)}
+                {a.name}
               </option>
             ))}
           </select>

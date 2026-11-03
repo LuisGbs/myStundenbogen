@@ -25,7 +25,7 @@ test('Projektliste exportieren und bei einer Kollegin ohne Dubletten importieren
   await page.getByLabel('Neue Tätigkeit für Beta', { exact: true }).fill('Engineering')
   await page.getByLabel('Nummer der neuen Tätigkeit für Beta').fill('10')
   await page.getByTestId('activities-Beta').getByRole('button', { name: 'Hinzufügen' }).click()
-  await expect(page.getByTestId('activities-Beta').getByLabel('Name der Tätigkeit')).toHaveCount(3)
+  await expect(page.getByTestId('activities-Beta').getByLabel('Name der Tätigkeit', { exact: true })).toHaveCount(3)
 
   await page.getByRole('button', { name: 'Exportieren …' }).click()
   const exportDialog = page.getByRole('dialog', { name: 'Projekte exportieren' })
@@ -39,9 +39,9 @@ test('Projektliste exportieren und bei einer Kollegin ohne Dubletten importieren
   expect(file.projects.map((p: { name: string }) => p.name)).toEqual(['Alpha', 'Beta'])
   expect(file.days).toBeUndefined()
   expect(file.projects[1].activities).toEqual([
-    { name: 'Büro', code: '' },
-    { name: 'Meeting', code: '' },
-    { name: 'Engineering', code: '10' },
+    { name: 'Büro', officialName: '', code: '' },
+    { name: 'Meeting', officialName: '', code: '' },
+    { name: 'Engineering', officialName: '', code: '10' },
   ])
 
   // Kollegin (eigener, leerer Browser): hat „Alpha AG“ mit derselben Nummer schon

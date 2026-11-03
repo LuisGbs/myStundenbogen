@@ -8,6 +8,7 @@ const act = (id: string, projectId: string | null, name: string, sortOrder = 0, 
   id,
   projectId,
   name,
+  officialName: '',
   code: '',
   active,
   sortOrder,
@@ -55,7 +56,7 @@ describe('Tätigkeiten je Projekt', () => {
 })
 
 describe('Umstellung Stand 8 → 9 (Tätigkeiten je Projekt)', () => {
-  const project = (id: string): Project => ({ id, name: id, code: '', color: '#000', active: true, sortOrder: 0, createdAt: '' })
+  const project = (id: string): Project => ({ id, name: id, officialName: '', code: '', color: '#000', active: true, sortOrder: 0, createdAt: '' })
   const alloc = (id: string, projectId: string, activityTypeId: string, value: number): Allocation => ({
     id,
     projectId,

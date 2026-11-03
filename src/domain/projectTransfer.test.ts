@@ -5,13 +5,14 @@ import type { ActivityType, Project } from './types'
 const project = (name: string, code = '', active = true): Project => ({
   id: name,
   name,
+  officialName: '',
   code,
   color: '#2563eb',
   active,
   sortOrder: 0,
   createdAt: '',
 })
-const activity = (name: string, active = true): ActivityType => ({ id: name, projectId: null, name, code: '', active, sortOrder: 0 })
+const activity = (name: string, active = true): ActivityType => ({ id: name, projectId: null, name, officialName: '', code: '', active, sortOrder: 0 })
 
 describe('buildProjectList', () => {
   it('enthält nur Name, Nummer, Farbe und aktive Tätigkeiten je Projekt + Standardliste – keine IDs', () => {
@@ -25,11 +26,17 @@ describe('buildProjectList', () => {
         { ...activity('Weg', false), id: 'w', projectId: alpha.id },
       ],
     )
-    expect(file.schemaVersion).toBe(2)
+    expect(file.schemaVersion).toBe(3)
     expect(file.projects).toEqual([
-      { name: 'Alpha', code: 'P-1', color: '#2563eb', activities: [{ name: 'Engineering', code: '10' }] },
+      {
+        name: 'Alpha',
+        officialName: '',
+        code: 'P-1',
+        color: '#2563eb',
+        activities: [{ name: 'Engineering', officialName: '', code: '10' }],
+      },
     ])
-    expect(file.activityTypes).toEqual([{ name: 'Büro', code: '' }])
+    expect(file.activityTypes).toEqual([{ name: 'Büro', officialName: '', code: '' }])
     expect(JSON.stringify(file)).not.toContain('"id"')
   })
 })
@@ -75,5 +82,16 @@ describe('planActivityTypeImport', () => {
       ['büro', 'exists', false],
       ['Reise', 'new', true],
     ])
+  })
+})
+
+describe('offizieller Name', () => {
+  it('wird exportiert und beim Abgleich erkannt', () => {
+    const own = { ...project('Rollen überarbeiten'), officialName: 'Epis Allg.' }
+    const file = buildProjectList([own], [])
+    expect(file.schemaVersion).toBe(3)
+    expect(file.projects[0]).toMatchObject({ name: 'Rollen überarbeiten', officialName: 'Epis Allg.' })
+    const [c] = planProjectImport([own], [{ name: 'Anderer Name', officialName: 'epis allg.', code: '', color: '' }])
+    expect(c).toMatchObject({ status: 'exists', selected: false })
   })
 })

@@ -5,6 +5,7 @@ import type { Project, Task } from './types'
 const project = (id: string, name: string, code = '', active = true): Project => ({
   id,
   name,
+  officialName: '',
   code,
   color: '#000',
   active,
@@ -142,6 +143,15 @@ describe('planTaskImport', () => {
       [['x'], 0],
     ])
     expect(planTaskImport(sections, [{ kind: 'skip' }], existing)[0].tasks).toEqual([])
+  })
+})
+
+describe('offizieller Name', () => {
+  it('Überschrift mit offiziellem Namen wird erkannt; LLM-Liste nennt ihn', () => {
+    const own = [{ ...project('r', 'Rollen überarbeiten', '2295/90'), officialName: 'Epis Allg.' }]
+    expect(matchProject('Epis Allg.', own)).toBe('r')
+    expect(matchProject('Rollen überarbeiten', own)).toBe('r')
+    expect(llmPrompt(own)).toContain('- Rollen überarbeiten (2295/90) – offiziell: Epis Allg.')
   })
 })
 

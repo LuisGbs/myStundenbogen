@@ -2,6 +2,7 @@ import type { AllocationStatus } from './allocation'
 import { monthDates, weekdayShort, formatDateShort, type YearMonth } from './date'
 import { summarizeDay } from './day'
 import { formatDuration } from './duration'
+import { officialName } from './labels'
 import type { ActivityType, Day, ISODate, Minutes, Project } from './types'
 
 export interface MonthRow {
@@ -46,11 +47,11 @@ export interface MonthGridOptions {
 }
 
 function placeholderProject(id: string): Project {
-  return { id, name: 'Unbekanntes Projekt', code: '', color: '#888888', active: false, sortOrder: 1e9, createdAt: '' }
+  return { id, name: 'Unbekanntes Projekt', officialName: '', code: '', color: '#888888', active: false, sortOrder: 1e9, createdAt: '' }
 }
 
 function placeholderActivity(id: string): ActivityType {
-  return { id, projectId: null, name: 'Unbekannt', code: '', active: false, sortOrder: 1e9 }
+  return { id, projectId: null, name: 'Unbekannt', officialName: '', code: '', active: false, sortOrder: 1e9 }
 }
 
 export function buildMonthGrid(
@@ -131,7 +132,10 @@ export function buildMonthGrid(
   return { yearMonth, dates, days: dayInfos, groups, totals }
 }
 
-/** Monatstabelle als Zeilen/Spalten für Excel-Export (Werte in h:mm). */
+/**
+ * Monatstabelle als Zeilen/Spalten für Excel-Export (Werte in h:mm). Vorne die
+ * offiziellen Namen und Nummern (Firmensoftware), ganz hinten die eigenen Namen.
+ */
 export function monthGridToTable(grid: MonthGrid): string[][] {
   const fmt = (m: Minutes) => (m === 0 ? '' : formatDuration(m))
   const header = [
@@ -141,17 +145,28 @@ export function monthGridToTable(grid: MonthGrid): string[][] {
     'Tätigkeit Nr.',
     ...grid.dates.map((d) => `${weekdayShort(d)} ${formatDateShort(d)}`),
     'Summe',
+    'Mein Projekt',
+    'Meine Tätigkeit',
   ]
   const rows = grid.groups.flatMap((g) =>
-    g.rows.map((r) => [g.project.name, g.project.code, r.activityType.name, r.activityType.code, ...r.perDay.map(fmt), fmt(r.total)]),
+    g.rows.map((r) => [
+      officialName(g.project),
+      g.project.code,
+      officialName(r.activityType),
+      r.activityType.code,
+      ...r.perDay.map(fmt),
+      fmt(r.total),
+      g.project.name,
+      r.activityType.name,
+    ]),
   )
   const blank = new Array<string>(header.length).fill('')
   return [
     header,
     ...rows,
     blank,
-    ['Summe gebucht', '', '', '', ...grid.days.map((d) => fmt(d.booked)), fmt(grid.totals.booked)],
-    ['Arbeitszeit', '', '', '', ...grid.days.map((d) => fmt(d.worked ?? 0)), fmt(grid.totals.worked)],
+    ['Summe gebucht', '', '', '', ...grid.days.map((d) => fmt(d.booked)), fmt(grid.totals.booked), '', ''],
+    ['Arbeitszeit', '', '', '', ...grid.days.map((d) => fmt(d.worked ?? 0)), fmt(grid.totals.worked), '', ''],
   ]
 }
 

@@ -6,6 +6,7 @@ import { SortGrip } from '../../components/SortGrip'
 import { useSortDrag } from '../../components/useSortDrag'
 import { createActivityType, deleteActivityType, reorderActivityType, updateActivityType } from '../../storage/repo'
 import { ActiveSwitch } from './ActiveSwitch'
+import { OfficialFields } from './OfficialFields'
 
 /**
  * Tätigkeiten eines Projekts (bzw. der Standardliste bei projectId null):
@@ -24,6 +25,7 @@ export function ActivityList({
 }) {
   const [name, setName] = useState('')
   const [code, setCode] = useState('')
+  const [official, setOfficial] = useState('')
   const sort = useSortDrag(
     `acts-${projectId ?? 'vorlage'}`,
     activities.map((a) => a.id),
@@ -33,9 +35,10 @@ export function ActivityList({
   const add = async (e: FormEvent) => {
     e.preventDefault()
     if (!name.trim()) return
-    await createActivityType(name, projectId, code)
+    await createActivityType(name, projectId, code, official)
     setName('')
     setCode('')
+    setOfficial('')
   }
 
   const remove = async (a: ActivityType) => {
@@ -73,16 +76,6 @@ export function ActivityList({
                 return trimmed
               }}
             />
-            <CommitInput
-              className="input act-row__code"
-              aria-label="Nummer der Tätigkeit"
-              placeholder="Nr."
-              value={a.code}
-              onCommit={(text) => {
-                void updateActivityType(a.id, { code: text.trim() })
-                return text.trim()
-              }}
-            />
             <ActiveSwitch active={a.active} onChange={(active) => void setActive(a, active)} />
             <button
               type="button"
@@ -93,16 +86,24 @@ export function ActivityList({
             >
               <Icon name="trash" />
             </button>
+            <OfficialFields item={a} kind="Tätigkeit" onChange={(patch) => void updateActivityType(a.id, patch)} />
           </li>
         ))}
       </ul>
       <form className="add-form act-list__add" onSubmit={add}>
         <input
           className="input add-form__name"
-          placeholder="Neue Tätigkeit, z.B. Engineering"
+          placeholder="Neue Tätigkeit – dein Name, z.B. Konzept"
           aria-label={`Neue Tätigkeit für ${owner}`}
           value={name}
           onChange={(e) => setName(e.target.value)}
+        />
+        <input
+          className="input add-form__official"
+          placeholder="Offizieller Name (optional)"
+          aria-label={`Offizieller Name der neuen Tätigkeit für ${owner}`}
+          value={official}
+          onChange={(e) => setOfficial(e.target.value)}
         />
         <input
           className="input add-form__code"

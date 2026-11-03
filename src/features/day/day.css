@@ -652,6 +652,22 @@
 }
 
 /* ---------- Notizen ---------- */
+.alloc-row__official {
+  flex-basis: 100%;
+  margin-top: -0.2rem;
+  padding-left: 2rem;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-panel__official {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
 .alloc-row__note {
   flex-basis: 100%;
   display: flex;

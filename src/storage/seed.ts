@@ -21,8 +21,8 @@ export function defaultSettings(): Settings {
 
 export function defaultActivityTypes(): ActivityType[] {
   return [
-    { id: 'buero', projectId: null, name: 'Büro', code: '', active: true, sortOrder: 0 },
-    { id: 'meeting', projectId: null, name: 'Meeting', code: '', active: true, sortOrder: 1 },
+    { id: 'buero', projectId: null, name: 'Büro', officialName: '', code: '', active: true, sortOrder: 0 },
+    { id: 'meeting', projectId: null, name: 'Meeting', officialName: '', code: '', active: true, sortOrder: 1 },
   ]
 }
 

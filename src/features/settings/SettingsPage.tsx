@@ -9,7 +9,7 @@ import {
 import { HOLIDAY_REGIONS, holidaysInYear } from '../../domain/holidays'
 import { isValidTemplate } from '../../domain/plan'
 import { weeklyTarget } from '../../domain/target'
-import { activitiesOf, activityLabel } from '../../domain/activities'
+import { activitiesOf } from '../../domain/activities'
 import type { ActivityType, HolidayRegion, Minutes, Project, Settings, TemplateBlock } from '../../domain/types'
 import { Icon } from '../../components/Icon'
 import { CommitInput, TimeInput } from '../../components/inputs'
@@ -218,7 +218,7 @@ function FillCard({ settings, projects, activityTypes }: { settings: Settings; p
           <option value="">– keins –</option>
           {combos.map(({ p, a }) => (
             <option key={`${p.id}|${a.id}`} value={`${p.id}|${a.id}`}>
-              {p.name} · {activityLabel(a)}
+              {p.name} · {a.name}
             </option>
           ))}
         </select>
