@@ -1,11 +1,13 @@
 import type { AllocationResult } from '../../domain/allocation'
 import { clockToMinutes, formatDuration, nowClock } from '../../domain/duration'
 import { newId } from '../../domain/id'
+import { appendNote } from '../../domain/notes'
 import { activeAllocation, runningBlockId, startWorkingOn, stopWorking } from '../../domain/nowWorking'
 import { clockIn } from '../../domain/plan'
 import { activitiesOf, defaultActivityId } from '../../domain/activities'
 import type { ActivityType, Day, Project } from '../../domain/types'
 import { Icon } from '../../components/Icon'
+import { CommitInput } from '../../components/inputs'
 import { Segmented } from '../../components/Segmented'
 import { ProjectTaskPreview } from '../tasks/ProjectTaskPreview'
 import { useProjectsByRecency } from './useProjectsByRecency'
@@ -48,6 +50,14 @@ export function NowWorking({ day, result, projects, activityTypes, onChange }: P
     })
   }
   const stop = () => onChange((d) => stopWorking(d, minutesNow()))
+  // Notiz der laufenden Buchung – immer gegen den gespeicherten Stand ändern
+  const changeNote = (fn: (note: string) => string) =>
+    onChange((d) => {
+      const current = activeAllocation(d)
+      return current
+        ? { ...d, allocations: d.allocations.map((a) => (a.id === current.id ? { ...a, note: fn(a.note) } : a)) }
+        : d
+    })
   const setType = (activityTypeId: string) =>
     onChange((d) => {
       const current = activeAllocation(d)
@@ -101,6 +111,17 @@ export function NowWorking({ day, result, projects, activityTypes, onChange }: P
           <button type="button" className="btn btn--small" onClick={stop}>
             <Icon name="stop" /> Anhalten
           </button>
+          <CommitInput
+            className="input now-working__note"
+            aria-label="Notiz (gerade)"
+            placeholder="Notiz: woran genau? (erscheint im Monat) – oder unten eine Aufgabe mit ▶ wählen"
+            value={active.note}
+            onCommit={(text) => {
+              const note = text.trim()
+              changeNote(() => note)
+              return note
+            }}
+          />
         </div>
       )}
 
@@ -123,7 +144,13 @@ export function NowWorking({ day, result, projects, activityTypes, onChange }: P
           )
         })}
       </div>
-      {activeProject && <ProjectTaskPreview project={activeProject} />}
+      {activeProject && active && (
+        <ProjectTaskPreview
+          project={activeProject}
+          activeNote={active.note}
+          onWorkOn={(title) => changeNote((note) => appendNote(note, title))}
+        />
+      )}
     </section>
   )
 }

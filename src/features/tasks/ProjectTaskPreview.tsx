@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { noteContains } from '../../domain/notes'
 import { taskTree } from '../../domain/tasks'
 import type { Project } from '../../domain/types'
+import { Icon } from '../../components/Icon'
 import { useToast } from '../../components/Toast'
 import { href } from '../../lib/router'
 import { useTasks } from '../../storage/hooks'
@@ -13,7 +15,17 @@ const MAX_TASKS = 3
 const MAX_ITEMS = 4
 
 /** „Offen bei …“ (Gerade-Karte): die ersten offenen Aufgaben des aktiven Projekts, direkt abhakbar. */
-export function ProjectTaskPreview({ project }: { project: Project }) {
+export function ProjectTaskPreview({
+  project,
+  activeNote = '',
+  onWorkOn,
+}: {
+  project: Project
+  /** Notiz der laufenden Buchung – zeigt, woran gerade gearbeitet wird */
+  activeNote?: string
+  /** „▶ dran arbeiten“: Titel in die Notiz der laufenden Buchung übernehmen (fehlt = keine Knöpfe) */
+  onWorkOn?: (title: string) => void
+}) {
   const tasks = useTasks()
   const [toast, showToast] = useToast()
   const [title, setTitle] = useState('')
@@ -33,21 +45,24 @@ export function ProjectTaskPreview({ project }: { project: Project }) {
           const openItems = items.filter((i) => !i.done)
           return (
             <li key={task.id}>
-              <label className="task-line">
-                <input
-                  type="checkbox"
-                  className="task-check"
-                  checked={false}
-                  aria-label={`${task.title} erledigt`}
-                  onChange={() => actions.toggle(task, true)}
-                />
-                {task.starred && <StarMark />}
-                <span>{task.title || 'Aufgabe'}</span>
-              </label>
+              <div className="task-preview__row">
+                <label className="task-line">
+                  <input
+                    type="checkbox"
+                    className="task-check"
+                    checked={false}
+                    aria-label={`${task.title} erledigt`}
+                    onChange={() => actions.toggle(task, true)}
+                  />
+                  {task.starred && <StarMark />}
+                  <span>{task.title || 'Aufgabe'}</span>
+                </label>
+                {onWorkOn && task.title && <WorkOnButton title={task.title} note={activeNote} onWorkOn={onWorkOn} />}
+              </div>
               {openItems.length > 0 && (
                 <ul className="task-lines task-preview__items">
                   {openItems.slice(0, MAX_ITEMS).map((item) => (
-                    <li key={item.id}>
+                    <li key={item.id} className="task-preview__row">
                       <label className="task-line small">
                         <input
                           type="checkbox"
@@ -58,6 +73,9 @@ export function ProjectTaskPreview({ project }: { project: Project }) {
                         />
                         <span>{item.title || 'Stichpunkt'}</span>
                       </label>
+                      {onWorkOn && item.title && (
+                        <WorkOnButton title={`${task.title}: ${item.title}`} note={activeNote} onWorkOn={onWorkOn} />
+                      )}
                     </li>
                   ))}
                   {openItems.length > MAX_ITEMS && <li className="muted small">… und {openItems.length - MAX_ITEMS} weitere</li>}
@@ -82,5 +100,22 @@ export function ProjectTaskPreview({ project }: { project: Project }) {
       />
       {toast}
     </div>
+  )
+}
+
+/** ▶ neben einer Aufgabe: „daran arbeite ich gerade“ – landet in der Notiz der laufenden Buchung. */
+function WorkOnButton({ title, note, onWorkOn }: { title: string; note: string; onWorkOn: (title: string) => void }) {
+  const active = noteContains(note, title)
+  return (
+    <button
+      type="button"
+      className={`icon-btn icon-btn--subtle work-on${active ? ' is-active' : ''}`}
+      aria-label={`An „${title}“ arbeiten`}
+      aria-pressed={active}
+      title={active ? 'Steht schon in der Notiz der laufenden Buchung' : 'Daran arbeite ich gerade – in die Notiz der laufenden Buchung übernehmen'}
+      onClick={() => onWorkOn(title)}
+    >
+      <Icon name="play" size={12} />
+    </button>
   )
 }
