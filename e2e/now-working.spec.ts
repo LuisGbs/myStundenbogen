@@ -84,7 +84,10 @@ test('„Gerade“: Notiz zur laufenden Buchung und Aufgabe mit ▶ wählen', as
   const note = page.getByLabel('Notiz (gerade)')
   await note.fill('Telefonat Bauherr')
   await note.press('Enter')
-  await page.clock.fastForward('00:00:02') // neuer Schritt im Rückgängig-Verlauf
+  // erst gespeichert (Liste zeigt die Notiz), dann neuer Schritt im Rückgängig-Verlauf
+  const row = page.getByTestId('alloc-row').first()
+  await expect(row.getByLabel('Notiz zum Eintrag')).toHaveValue('Telefonat Bauherr')
+  await page.clock.fastForward('00:00:02')
   await workOn.click()
   await expect(note).toHaveValue('Telefonat Bauherr · Pläne prüfen')
   await expect(workOn).toHaveAttribute('aria-pressed', 'true')
@@ -92,7 +95,6 @@ test('„Gerade“: Notiz zur laufenden Buchung und Aufgabe mit ▶ wählen', as
   await expect(note).toHaveValue('Telefonat Bauherr · Pläne prüfen')
 
   // dieselbe Notiz steht an der Buchung in der Liste
-  const row = page.getByTestId('alloc-row').first()
   await expect(row.getByLabel('Notiz zum Eintrag')).toHaveValue('Telefonat Bauherr · Pläne prüfen')
 
   // Rückgängig nimmt die Aufgabe wieder heraus
