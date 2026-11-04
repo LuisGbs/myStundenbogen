@@ -58,3 +58,44 @@ test('„Gerade“: Projekt läuft mit, Wechsel hält das alte an, Ausstempeln b
   await expect(page.getByLabel('Block 1 Ende')).toHaveValue('08:50')
   await expect(page.getByTestId('day-status')).toContainText('1:45 von 6:12 verteilt')
 })
+
+test('„Gerade“: Notiz zur laufenden Buchung und Aufgabe mit ▶ wählen', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-20T07:05:00+02:00') })
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Neu beginnen' }).click()
+  await page.goto('/#/projekte')
+  await page.getByLabel('Projektname', { exact: true }).first().fill('Epis')
+  await page.getByRole('button', { name: 'Anlegen' }).click()
+  await expect(page.locator('.item-row input[aria-label="Projektname"]').last()).toHaveValue('Epis')
+  await page.goto('/#/tag/2026-10-20')
+
+  const card = page.getByTestId('now-working')
+  await card.getByTestId('now-chip-Epis').click()
+  await expect(page.getByTestId('now-active')).toContainText('Epis')
+
+  // Aufgabe schnell notieren – erscheint mit ▶
+  const quick = page.getByLabel('Aufgabe für Epis notieren')
+  await quick.fill('Pläne prüfen')
+  await quick.press('Enter')
+  const workOn = card.getByRole('button', { name: 'An „Pläne prüfen“ arbeiten' })
+  await expect(workOn).toHaveAttribute('aria-pressed', 'false')
+
+  // freie Notiz, dann Aufgabe anhängen – ohne Dublette
+  const note = page.getByLabel('Notiz (gerade)')
+  await note.fill('Telefonat Bauherr')
+  await note.press('Enter')
+  await page.clock.fastForward('00:00:02') // neuer Schritt im Rückgängig-Verlauf
+  await workOn.click()
+  await expect(note).toHaveValue('Telefonat Bauherr · Pläne prüfen')
+  await expect(workOn).toHaveAttribute('aria-pressed', 'true')
+  await workOn.click()
+  await expect(note).toHaveValue('Telefonat Bauherr · Pläne prüfen')
+
+  // dieselbe Notiz steht an der Buchung in der Liste
+  const row = page.getByTestId('alloc-row').first()
+  await expect(row.getByLabel('Notiz zum Eintrag')).toHaveValue('Telefonat Bauherr · Pläne prüfen')
+
+  // Rückgängig nimmt die Aufgabe wieder heraus
+  await page.getByRole('button', { name: 'Rückgängig', exact: true }).click()
+  await expect(note).toHaveValue('Telefonat Bauherr')
+})

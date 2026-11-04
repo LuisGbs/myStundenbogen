@@ -414,3 +414,28 @@
   background: var(--warn-soft);
   color: var(--warn);
 }
+
+/* ▶ dran arbeiten (Gerade-Karte) */
+.task-preview__row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.work-on {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  opacity: 0.55;
+}
+
+.task-preview__row:hover .work-on,
+.work-on:focus-visible {
+  opacity: 1;
+}
+
+.work-on.is-active {
+  opacity: 1;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
