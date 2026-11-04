@@ -28,6 +28,7 @@ import {
   createActivityType,
   deleteActivityType,
   updateActivityType,
+  toggleDefaultActivity,
   reorderActivityType,
   reorderProject,
   recentProjectIds,
@@ -519,5 +520,85 @@ describe('Offizieller Name (Datenstand 10 / Dexie v11)', () => {
     const own = await db.activityTypes.where('projectId').equals(p.id).toArray()
     expect(own.find((a) => a.name === 'Büro')?.officialName).toBe('Allgemein')
     expect((await createProject({ name: 'Ohne' })).officialName).toBe('')
+  })
+})
+
+describe('Standard-Tätigkeit (Datenstand 11 / Dexie v12)', () => {
+  it('genau eine je Projekt, Reihenfolge bleibt, nochmal antippen nimmt ihn weg, deaktivieren löscht ihn', async () => {
+    const p = await createProject({ name: 'Epis' })
+    const own = () => db.activityTypes.where('projectId').equals(p.id).sortBy('sortOrder')
+    const [buero, meeting] = await own()
+    await toggleDefaultActivity(meeting.id)
+    expect((await own()).map((a) => [a.name, a.isDefault])).toEqual([
+      ['Büro', false],
+      ['Meeting', true],
+    ])
+    await toggleDefaultActivity(buero.id)
+    expect((await own()).map((a) => [a.name, a.isDefault])).toEqual([
+      ['Büro', true],
+      ['Meeting', false],
+    ])
+    // Standardliste bleibt unberührt
+    expect((await db.activityTypes.toArray()).filter((a) => a.projectId === null).every((a) => !a.isDefault)).toBe(true)
+    await toggleDefaultActivity(buero.id)
+    expect((await own()).some((a) => a.isDefault)).toBe(false)
+
+    await toggleDefaultActivity(meeting.id)
+    await updateActivityType(meeting.id, { active: false })
+    expect((await db.activityTypes.get(meeting.id))?.isDefault).toBe(false)
+    // inaktive als Standard setzen macht sie wieder aktiv
+    await toggleDefaultActivity(meeting.id)
+    expect(await db.activityTypes.get(meeting.id)).toMatchObject({ active: true, isDefault: true })
+  })
+
+  it('neues Projekt erbt den Standard der Standardliste', async () => {
+    const meeting = (await db.activityTypes.toArray()).find((a) => a.projectId === null && a.name === 'Meeting')!
+    await toggleDefaultActivity(meeting.id)
+    const p = await createProject({ name: 'Neu' })
+    const own = await db.activityTypes.where('projectId').equals(p.id).toArray()
+    expect(own.find((a) => a.isDefault)?.name).toBe('Meeting')
+  })
+
+  it('Sicherung von Stand 10 und Datenbank v11 → v12 bekommen isDefault = false', async () => {
+    const file = parseBackup(
+      JSON.stringify({
+        app: 'stundenbogen',
+        schemaVersion: 10,
+        data: { projects: [], activityTypes: [{ id: 'a', projectId: 'p', name: 'X', officialName: 'X' }], days: [] },
+      }),
+    )
+    expect(file.data.activityTypes[0].isDefault).toBe(false)
+
+    const { default: Dexie } = await import('dexie')
+    const { StundenbogenDB } = await import('./db')
+    const old = new Dexie('upgrade-v12')
+    old.version(11).stores({
+      projects: 'id, sortOrder',
+      activityTypes: 'id, projectId, sortOrder',
+      days: 'date',
+      settings: 'id',
+      meta: 'key',
+      tasks: 'id, projectId, parentId, sortOrder',
+    })
+    await old.table('activityTypes').put({ id: 'a', projectId: 'p', name: 'X', officialName: 'X', code: '', active: true, sortOrder: 0 })
+    old.close()
+    const upgraded = new StundenbogenDB('upgrade-v12')
+    expect((await upgraded.activityTypes.get('a'))?.isDefault).toBe(false)
+    upgraded.close()
+  })
+
+  it('Projektliste nimmt den Standard mit', async () => {
+    const p = await createProject({ name: 'Alpha' })
+    const [, meeting] = await db.activityTypes.where('projectId').equals(p.id).sortBy('sortOrder')
+    await toggleDefaultActivity(meeting.id)
+    const list = parseProjectList(JSON.stringify(buildProjectList(await db.projects.toArray(), await db.activityTypes.toArray())))
+    expect(list.projects[0].activities?.map((a) => [a.name, a.isDefault ?? false])).toEqual([
+      ['Büro', false],
+      ['Meeting', true],
+    ])
+    await importProjectList([{ ...list.projects[0], name: 'Kopie' }], [])
+    const copy = (await db.projects.toArray()).find((x) => x.name === 'Kopie')!
+    const acts = await db.activityTypes.where('projectId').equals(copy.id).toArray()
+    expect(acts.find((a) => a.isDefault)?.name).toBe('Meeting')
   })
 })

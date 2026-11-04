@@ -68,6 +68,8 @@ export async function createProject(
 
 /** Tätigkeiten eines neuen Projekts: aus der Liste (Import) oder Kopie der Standardliste. */
 async function addProjectActivities(projectId: string, activities?: SharedActivityType[]): Promise<void> {
+  // Standard aus der Datei: höchstens eine je Projekt
+  const defaultIndex = activities?.findIndex((a) => a.isDefault) ?? -1
   const rows: ActivityType[] = activities?.length
     ? activities.map((a, i) => ({
         id: newId(),
@@ -76,6 +78,7 @@ async function addProjectActivities(projectId: string, activities?: SharedActivi
         officialName: (a.officialName ?? a.name).trim(),
         code: (a.code ?? '').trim(),
         active: true,
+        isDefault: i === defaultIndex,
         sortOrder: i,
       }))
     : copyTemplate(projectId, await db.activityTypes.toArray(), newId)
@@ -128,6 +131,8 @@ export async function importProjectList(projects: SharedProject[], activityTypes
         officialName: (a.officialName ?? a.name).trim(),
         code: (a.code ?? '').trim(),
         active: true,
+        // der eigene Standard der Standardliste bleibt
+        isDefault: false,
         sortOrder: typeOrder++,
       })
     }
@@ -171,6 +176,7 @@ export async function createActivityType(
       officialName: officialName.trim(),
       code: code.trim(),
       active: true,
+      isDefault: false,
       sortOrder: group.reduce((max, a) => Math.max(max, a.sortOrder + 1), 0),
     }
     await db.activityTypes.add(activityType)
@@ -190,8 +196,30 @@ export async function updateActivityType(
     const current = await db.activityTypes.get(id)
     if (!current) return false
     if (patch.active === false && current.active && (await isLastActive(current))) return false
-    await db.activityTypes.update(id, patch)
+    // eine inaktive Tätigkeit kann nicht Standard sein
+    await db.activityTypes.update(id, patch.active === false ? { ...patch, isDefault: false } : patch)
     return true
+  })
+}
+
+/**
+ * Macht eine Tätigkeit zum Standard ihres Projekts (bzw. der Standardliste) –
+ * nochmal antippen nimmt den Standard weg (dann gilt die erste aktive).
+ * Die Reihenfolge bleibt unverändert.
+ */
+export async function toggleDefaultActivity(id: string): Promise<void> {
+  await db.transaction('rw', db.activityTypes, async () => {
+    const current = await db.activityTypes.get(id)
+    if (!current) return
+    const group = (await db.activityTypes.toArray()).filter(sameGroup(current.projectId))
+    const makeDefault = !current.isDefault
+    await db.activityTypes.bulkPut(
+      group.map((a) =>
+        a.id === id
+          ? { ...a, isDefault: makeDefault, active: a.active || makeDefault }
+          : { ...a, isDefault: makeDefault ? false : a.isDefault },
+      ),
+    )
   })
 }
 

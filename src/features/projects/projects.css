@@ -148,3 +148,34 @@
     padding-left: 0;
   }
 }
+
+/* Standard-Tätigkeit: kleiner Pill-Schalter */
+.default-toggle {
+  flex: none;
+  height: 24px;
+  padding: 0 0.55rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.74rem;
+  cursor: pointer;
+}
+
+.default-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.default-toggle.is-on {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+/* nur automatisch Standard (erste aktive) – heller */
+.default-toggle.is-on.is-auto {
+  background: var(--accent-soft);
+  color: var(--accent);
+}

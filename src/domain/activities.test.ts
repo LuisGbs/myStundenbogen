@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { activitiesOf, activityLabel, copyTemplate, defaultActivityId, templateActivities, withProject } from './activities'
+import {
+  activitiesOf,
+  activityLabel,
+  allActivitiesOf,
+  copyTemplate,
+  defaultActivityId,
+  effectiveDefault,
+  templateActivities,
+  withProject,
+} from './activities'
 import { buildMonthGrid } from './month'
 import { splitActivitiesPerProject } from './legacy'
 import type { ActivityType, Allocation, Day, Project } from './types'
@@ -11,6 +20,7 @@ const act = (id: string, projectId: string | null, name: string, sortOrder = 0, 
   officialName: '',
   code: '',
   active,
+  isDefault: false,
   sortOrder,
 })
 
@@ -43,9 +53,22 @@ describe('Tätigkeiten je Projekt', () => {
     expect(withProject(row, 'epis', all)).toEqual(row)
   })
 
+  it('Standard-Tätigkeit: markierte schlägt die erste aktive; inaktive markierte zählt nicht; Name beim Wechsel zuerst', () => {
+    const marked = all.map((a) => (a.id === 'e-meet' ? { ...a, isDefault: true } : a))
+    expect(defaultActivityId('epis', marked)).toBe('e-meet')
+    expect(effectiveDefault(allActivitiesOf('epis', marked))?.id).toBe('e-meet')
+    expect(effectiveDefault(allActivitiesOf('epis', all))?.id).toBe('e-eng') // automatisch: erste aktive
+    const inactive = all.map((a) => (a.id === 'e-alt' ? { ...a, isDefault: true } : a))
+    expect(defaultActivityId('epis', inactive)).toBe('e-eng')
+    // Projektwechsel einer Zeile: gleicher Name vor Standard
+    const withEng = [...marked, act('r-eng', 'revit', 'Engineering', 1)]
+    expect(withProject({ projectId: 'epis', activityTypeId: 'e-eng' }, 'revit', withEng).activityTypeId).toBe('r-eng')
+  })
+
   it('neues Projekt kopiert die aktiven Einträge der Standardliste', () => {
     let n = 0
-    const copy = copyTemplate('neu', [...all, { ...act('t0', null, 'Reise', 5), code: 'R' }], () => `id${n++}`)
+    const copy = copyTemplate('neu', [...all, { ...act('t0', null, 'Reise', 5), code: 'R', isDefault: true }], () => `id${n++}`)
+    expect(copy.map((a) => a.isDefault)).toEqual([false, false, true])
     expect(copy.map((a) => [a.name, a.code, a.projectId, a.sortOrder])).toEqual([
       ['Büro', '', 'neu', 0],
       ['Meeting', '', 'neu', 1],

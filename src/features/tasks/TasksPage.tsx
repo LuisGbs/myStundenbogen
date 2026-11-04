@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { openTaskCounts, progress, taskTree } from '../../domain/tasks'
+import { openCountText, openTaskCounts, progress, sumCounts, taskTree, type OpenCount } from '../../domain/tasks'
 import type { Project, Task } from '../../domain/types'
 import { useToast } from '../../components/Toast'
 import { useSortDrag } from '../../components/useSortDrag'
@@ -43,7 +43,7 @@ export function TasksPage({ projectId }: { projectId: string | null }) {
       <nav className="tasks-nav card" aria-label="Projekte">
         <a href={href.tasks()} className={`tasks-nav__item${projectId === null ? ' is-active' : ''}`}>
           Alle
-          <span className="tasks-nav__count">{[...counts.values()].reduce((a, b) => a + b, 0)}</span>
+          <OpenCountBadges count={sumCounts(counts.values())} />
         </a>
         {visible.map((p) => (
           <a
@@ -54,7 +54,7 @@ export function TasksPage({ projectId }: { projectId: string | null }) {
           >
             <span className="dot" style={{ background: p.color }} />
             <span className="tasks-nav__name">{p.name}</span>
-            {counts.get(p.id) ? <span className="tasks-nav__count">{counts.get(p.id)}</span> : null}
+            <OpenCountBadges count={counts.get(p.id)} />
           </a>
         ))}
         {inactiveCount > 0 && (
@@ -145,7 +145,8 @@ function ProjectTasks({ project, tasks, actions }: { project: Project; tasks: Ta
           <span className="dot" style={{ background: project.color }} /> {project.name}
         </h2>
         <span className="muted small">
-          {open.length} offen{done.length ? ` · ${done.length} erledigt` : ''}
+          {openCountText(openTaskCounts(open.map((n) => n.task)).get(project.id) ?? { starred: 0, other: 0 })}
+          {done.length ? ` · ${done.length} erledigt` : ''}
         </span>
       </header>
 
@@ -215,7 +216,9 @@ function Overview({ projects, tasks, actions }: { projects: Project[]; tasks: Ta
                 <span className="dot" style={{ background: project.color }} /> {project.name}
               </a>
             </h2>
-            <span className="muted small">{open.length} offen</span>
+            <span className="muted small">
+              {openCountText(openTaskCounts(open.map((n) => n.task)).get(project.id) ?? { starred: 0, other: 0 })}
+            </span>
           </header>
           <ul className="task-lines">
             {open.map(({ task, items }) => {
@@ -245,5 +248,24 @@ function Overview({ projects, tasks, actions }: { projects: Project[]; tasks: Ta
         </section>
       ))}
     </>
+  )
+}
+
+/** Kleine Zähler in der Projektspalte: ★ wichtig (nur wenn vorhanden) und ohne ★. */
+function OpenCountBadges({ count }: { count: OpenCount | undefined }) {
+  if (!count || count.starred + count.other === 0) return null
+  return (
+    <span className="tasks-nav__counts" title={`${count.starred} wichtig (★), ${count.other} weitere offen`}>
+      {count.starred > 0 && (
+        <span className="tasks-nav__count tasks-nav__count--star" data-testid="count-starred">
+          ★ {count.starred}
+        </span>
+      )}
+      {count.other > 0 && (
+        <span className="tasks-nav__count" data-testid="count-other">
+          {count.other}
+        </span>
+      )}
+    </span>
   )
 }

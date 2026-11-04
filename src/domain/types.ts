@@ -35,6 +35,8 @@ export interface ActivityType {
   officialName: string
   /** Nummer der Unter-Kostenstelle (optional) */
   code: string
+  /** Wird beim Buchen des Projekts vorgewählt (höchstens eine je Projekt bzw. Standardliste) */
+  isDefault: boolean
   active: boolean
   sortOrder: number
 }

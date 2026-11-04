@@ -51,7 +51,7 @@ function placeholderProject(id: string): Project {
 }
 
 function placeholderActivity(id: string): ActivityType {
-  return { id, projectId: null, name: 'Unbekannt', officialName: '', code: '', active: false, sortOrder: 1e9 }
+  return { id, projectId: null, name: 'Unbekannt', officialName: '', code: '', active: false, isDefault: false, sortOrder: 1e9 }
 }
 
 export function buildMonthGrid(

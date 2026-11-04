@@ -33,13 +33,12 @@ export function NowWorking({ day, result, projects, activityTypes, onChange }: P
   const active = activeAllocation(day)
   const activeProject = active && projects.find((p) => p.id === active.projectId)
   const types = active ? activitiesOf(active.projectId, activityTypes, active.activityTypeId) : []
-  // beim Wechsel die gleichnamige Tätigkeit im neuen Projekt (z.B. Meeting → Meeting)
-  const activeName = active ? activityTypes.find((a) => a.id === active.activityTypeId)?.name : undefined
 
   if (byRecency.length === 0) return null
 
   const start = (projectId: string) => {
-    const target = { projectId, activityTypeId: defaultActivityId(projectId, activityTypes, activeName) }
+    // neues Projekt = neue Arbeit: dessen Standard-Tätigkeit
+    const target = { projectId, activityTypeId: defaultActivityId(projectId, activityTypes) }
     const blockId = newId()
     const rowId = newId()
     onChange((d) => {

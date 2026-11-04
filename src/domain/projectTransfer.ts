@@ -15,6 +15,8 @@ export interface SharedActivityType {
   /** Name in der Firmensoftware (ab Format 3); fehlt = wie name */
   officialName?: string
   code?: string
+  /** Standard beim Buchen (ab Format 3, optional) */
+  isDefault?: boolean
 }
 
 export interface SharedProject {
@@ -36,7 +38,12 @@ export interface ProjectListFile {
   activityTypes: SharedActivityType[]
 }
 
-const shared = (a: ActivityType): SharedActivityType => ({ name: a.name, officialName: a.officialName, code: a.code })
+const shared = (a: ActivityType): SharedActivityType => ({
+  name: a.name,
+  officialName: a.officialName,
+  code: a.code,
+  ...(a.isDefault ? { isDefault: true } : {}),
+})
 
 export function buildProjectList(projects: Project[], activityTypes: ActivityType[]): ProjectListFile {
   return {

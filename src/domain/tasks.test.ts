@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { insertAfter, openTaskCounts, progress, taskTree } from './tasks'
+import { insertAfter, openCountText, openTaskCounts, progress, sumCounts, taskTree, totalOpen } from './tasks'
 import type { Task } from './types'
 
 const task = (id: string, projectId: string, parentId: string | null, sortOrder: number, done = false): Task => ({
@@ -42,9 +42,21 @@ describe('Aufgaben', () => {
   it('Fortschritt und offene Aufgaben je Projekt (Stichpunkte zählen nicht)', () => {
     expect(progress(taskTree(tasks, 'epis').open[0].items)).toEqual({ done: 1, total: 2 })
     expect(openTaskCounts(tasks)).toEqual(new Map([
-      ['epis', 2],
-      ['revit', 1],
+      ['epis', { starred: 0, other: 2 }],
+      ['revit', { starred: 0, other: 1 }],
     ]))
+  })
+
+  it('zählt ★ und ohne getrennt; Summe und Text', () => {
+    const withStar = tasks.map((t) => (t.id === 'b' ? { ...t, starred: true } : t))
+    const counts = openTaskCounts(withStar)
+    expect(counts.get('epis')).toEqual({ starred: 1, other: 1 })
+    expect(sumCounts(counts.values())).toEqual({ starred: 1, other: 2 })
+    expect(totalOpen(counts.get('epis'))).toBe(2)
+    expect(totalOpen(undefined)).toBe(0)
+    expect(openCountText({ starred: 1, other: 1 })).toBe('★ 1 · 1 weitere offen')
+    expect(openCountText({ starred: 0, other: 3 })).toBe('3 offen')
+    expect(openCountText({ starred: 2, other: 0 })).toBe('★ 2 offen')
   })
 
   it('neuer Eintrag direkt hinter einem anderen (Enter im Stichpunkt)', () => {

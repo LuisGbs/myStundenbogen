@@ -26,6 +26,15 @@ test('Tätigkeiten je Projekt: eigene Auswahl am Tag, Projektwechsel, Nummer im 
   await page.getByLabel('Nummer der neuen Tätigkeit für Epis').fill('10')
   await epis.getByRole('button', { name: 'Hinzufügen' }).click()
   await expect(epis.getByLabel('Name der Tätigkeit', { exact: true })).toHaveCount(3)
+  // Standard: automatisch die erste aktive, dann Engineering fest – Reihenfolge bleibt
+  const standard = (name: string) => epis.getByRole('button', { name: `${name} als Standard` })
+  await expect(standard('Büro')).toHaveAttribute('aria-pressed', 'true')
+  await standard('Engineering').click()
+  await expect(standard('Engineering')).toHaveAttribute('aria-pressed', 'true')
+  await expect(standard('Büro')).toHaveAttribute('aria-pressed', 'false')
+  await expect
+    .poll(() => epis.getByLabel('Name der Tätigkeit', { exact: true }).evaluateAll((els) => els.map((el) => (el as HTMLInputElement).value)))
+    .toEqual(['Büro', 'Meeting', 'Engineering'])
   await page.getByRole('button', { name: 'Tätigkeiten von Revit' }).click()
   const revit = page.getByTestId('activities-Revit')
   await revit.getByRole('button', { name: 'Büro löschen' }).click()
@@ -45,7 +54,7 @@ test('Tätigkeiten je Projekt: eigene Auswahl am Tag, Projektwechsel, Nummer im 
   const radios = (i: number) =>
     rows.nth(i).getByRole('radiogroup', { name: 'Tätigkeit' }).getByRole('radio').allInnerTexts()
   await expect.poll(() => radios(0)).toEqual(['Büro', 'Meeting', 'Engineering'])
-  await rows.nth(0).getByRole('radio', { name: 'Engineering' }).click()
+  // Standard-Tätigkeit ist vorgewählt
   await expect(rows.nth(0).getByRole('radio', { name: 'Engineering' })).toBeChecked()
 
   await page.getByLabel('Projekt hinzufügen').selectOption({ label: 'Revit' })

@@ -12,7 +12,7 @@ import { defaultSettings } from './seed'
  * Version des Sicherungsformats. Bei jeder Änderung am Datenmodell erhöhen und
  * in MIGRATIONS eine Funktion „von Version n auf n+1“ ergänzen.
  */
-export const SCHEMA_VERSION = 10
+export const SCHEMA_VERSION = 11
 
 const MIGRATIONS: Record<number, (data: Record<string, unknown>) => Record<string, unknown>> = {
   // 1 → 2: Allocation.blockId ist neu und optional – alte Zeilen bleiben „frei verteilt“.
@@ -54,6 +54,8 @@ const MIGRATIONS: Record<number, (data: Record<string, unknown>) => Record<strin
     projects: Array.isArray(data.projects) ? data.projects.map(addOfficialName) : data.projects,
     activityTypes: Array.isArray(data.activityTypes) ? data.activityTypes.map(addOfficialName) : data.activityTypes,
   }),
+  // 10 → 11: ActivityType.isDefault – ergänzt parseBackup über den Standardwert false.
+  10: (data) => data,
 }
 
 export interface BackupData {
@@ -134,7 +136,7 @@ export function parseBackup(text: string): BackupFile {
   })
   const activityTypes = asArray(data.activityTypes, 'Tätigkeiten').map((a): ActivityType => {
     if (typeof a.id !== 'string' || typeof a.name !== 'string') throw new ImportError('Ungültige Tätigkeit in der Sicherung.')
-    return { projectId: null, officialName: '', code: '', active: true, sortOrder: 0, ...a } as ActivityType
+    return { projectId: null, officialName: '', code: '', isDefault: false, active: true, sortOrder: 0, ...a } as ActivityType
   })
   const days = asArray(data.days, 'Tage').map((d): Day => {
     if (typeof d.date !== 'string' || !isISODate(d.date)) throw new ImportError('Ungültiger Tag in der Sicherung.')
@@ -205,6 +207,7 @@ export function parseProjectList(text: string): ProjectListFile {
     name: str(a.name).trim(),
     officialName: official(a),
     code: str(a.code).trim(),
+    ...(a.isDefault === true ? { isDefault: true } : {}),
   })
   const named = (list: SharedActivityType[]) => list.filter((a) => a.name !== '')
   const rawTypes = Array.isArray(source.activityTypes) ? asArray(source.activityTypes, 'Tätigkeiten') : []

@@ -16,6 +16,8 @@ Persönliche Web-App, um jeden Tag schnell festzuhalten, **wie lange** gearbeite
   - offene Zeit proportional auf alle Zeilen verteilen
 - **Projekt (Kostenstelle) → Tätigkeit (Unter-Kostenstelle)**: Jedes Projekt hat eigene Tätigkeiten mit Name und optionaler Nummer (z.B. Engineering 10, Abwicklung 20, Meeting). Neue Projekte starten mit einer Kopie der „Standardliste“. Jede Kombination ist ein eigener Eintrag; Monatstabelle und Excel haben die Spalte „Tätigkeit Nr.“.
 - **Drei Felder je Projekt und Tätigkeit:** eigener Name (so denkst du beim Erfassen, z.B. „Rollen überarbeiten“ – groß am Tag, bei „Gerade“ und in den Aufgaben), dazu klein der offizielle Name aus der Firmensoftware und die Nummer. Am Tag steht das Buchungsziel klein unter der Zeile; Monatstabelle und Excel zeigen die offiziellen Namen, die eigenen Namen klein darunter bzw. in den letzten Excel-Spalten „Mein Projekt“/„Meine Tätigkeit“. Leerer offizieller Name = eigener Name.
+- **Standard-Tätigkeit:** Je Projekt (und in der Standardliste) lässt sich eine Tätigkeit per „Standard“ festlegen – sie wird beim Buchen vorgewählt (neue Zeile, Zeitleiste, „Gerade“). Ohne Festlegung gilt die erste aktive; die Reihenfolge bleibt unverändert.
+- **Aufgaben-Zähler:** In der Projektspalte stehen je Projekt die offenen Aufgaben mit ★ und ohne getrennt.
 - **Monatstabelle**
   - Tage nach rechts, Projekte und Tätigkeiten nach unten, Summen, Hinweise auf offene Tage.
   - „Tabelle kopieren“ (direkt in Excel einfügen) und CSV-Export.
