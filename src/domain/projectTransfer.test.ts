@@ -12,7 +12,7 @@ const project = (name: string, code = '', active = true): Project => ({
   sortOrder: 0,
   createdAt: '',
 })
-const activity = (name: string, active = true): ActivityType => ({ id: name, projectId: null, name, officialName: '', code: '', active, sortOrder: 0 })
+const activity = (name: string, active = true): ActivityType => ({ id: name, projectId: null, name, officialName: '', code: '', active, isDefault: false, sortOrder: 0 })
 
 describe('buildProjectList', () => {
   it('enthält nur Name, Nummer, Farbe und aktive Tätigkeiten je Projekt + Standardliste – keine IDs', () => {

@@ -14,8 +14,8 @@ const project = (id: string, sortOrder: number, active = true): Project => ({
   createdAt: '',
 })
 const activities: ActivityType[] = [
-  { id: 'buero', projectId: 'a', name: 'Büro', officialName: '', code: '10', active: true, sortOrder: 0 },
-  { id: 'meeting', projectId: 'a', name: 'Meeting', officialName: '', code: '', active: true, sortOrder: 1 },
+  { id: 'buero', projectId: 'a', name: 'Büro', officialName: '', code: '10', active: true, isDefault: false, sortOrder: 0 },
+  { id: 'meeting', projectId: 'a', name: 'Meeting', officialName: '', code: '', active: true, isDefault: false, sortOrder: 1 },
 ]
 const alloc = (id: string, projectId: string, activityTypeId: string, mode: Allocation['mode'], value = 0): Allocation => ({
   id,

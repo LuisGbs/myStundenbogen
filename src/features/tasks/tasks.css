@@ -398,3 +398,19 @@
   color: var(--warn);
   vertical-align: -3px;
 }
+
+/* Zähler ★ / ohne in der Projektspalte */
+.tasks-nav__counts {
+  display: inline-flex;
+  gap: 0.2rem;
+  margin-left: auto;
+}
+
+.tasks-nav__counts .tasks-nav__count {
+  margin-left: 0;
+}
+
+.tasks-nav__count--star {
+  background: var(--warn-soft);
+  color: var(--warn);
+}

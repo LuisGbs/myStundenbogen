@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { allActivitiesOf, templateActivities } from '../../domain/activities'
+import { allActivitiesOf, effectiveDefault, templateActivities } from '../../domain/activities'
 import type { ProjectListFile } from '../../domain/projectTransfer'
 import type { ActivityType, Project } from '../../domain/types'
 import { Icon } from '../../components/Icon'
@@ -201,7 +201,7 @@ function ProjectsCard({ projects, activityTypes }: { projects: Project[]; activi
                   className={`btn btn--ghost btn--small project-acts-toggle${open ? ' is-open' : ''}`}
                   aria-expanded={open}
                   aria-label={`Tätigkeiten von ${p.name}`}
-                  title={own.map((a) => a.name).join(', ')}
+                  title={`${own.map((a) => a.name).join(', ')}${effectiveDefault(own) ? ` – Standard: ${effectiveDefault(own)!.name}` : ''}`}
                   onClick={() => toggleExpanded(p.id)}
                 >
                   Tätigkeiten ({own.filter((a) => a.active).length})

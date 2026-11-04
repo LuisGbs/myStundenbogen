@@ -40,6 +40,9 @@ test('Aufgaben: ★ wichtig, Info mit LLM-Text, Import mit Vorschau, keine Doppe
   await page.getByRole('button', { name: 'Zweite als wichtig markieren' }).click()
   await expect.poll(titles).toEqual(['Zweite', 'Erste'])
   await expect(page.getByRole('button', { name: 'Zweite als wichtig markieren' })).toHaveAttribute('aria-pressed', 'true')
+  // Projektspalte: ★ und ohne getrennt gezählt
+  await expect(page.getByTestId('tasks-nav-Epis').getByTestId('count-starred')).toHaveText('★ 1')
+  await expect(page.getByTestId('tasks-nav-Epis').getByTestId('count-other')).toHaveText('1')
 
   // Info: LLM-Text enthält die Projekte und landet in der Zwischenablage
   await page.getByRole('button', { name: 'Format & LLM-Hilfe' }).click()

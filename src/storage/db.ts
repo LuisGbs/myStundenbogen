@@ -131,6 +131,17 @@ export class StundenbogenDB extends Dexie {
             })
         }
       })
+    // v12: ActivityType.isDefault (Standard beim Buchen) – bisher ist keine markiert (= erste aktive).
+    this.version(12)
+      .stores({})
+      .upgrade(async (tx) => {
+        await tx
+          .table('activityTypes')
+          .toCollection()
+          .modify((a: { isDefault?: unknown }) => {
+            if (typeof a.isDefault !== 'boolean') a.isDefault = false
+          })
+      })
   }
 }
 

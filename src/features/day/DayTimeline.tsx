@@ -25,7 +25,7 @@ import { Icon } from '../../components/Icon'
 import { CommitInput } from '../../components/inputs'
 import { Segmented } from '../../components/Segmented'
 import { NoteInput } from './AllocationSection'
-import { openTaskCounts } from '../../domain/tasks'
+import { openTaskCounts, totalOpen } from '../../domain/tasks'
 import { href } from '../../lib/router'
 import { useTasks } from '../../storage/hooks'
 import { useProjectsByRecency } from './useProjectsByRecency'
@@ -462,7 +462,7 @@ export function DayTimeline({ day, result, projects, activityTypes, nowMinutes, 
           maxMinutes={maxSegmentMinutes(selectedBlock, selected)}
           projectName={projectById.get(selected.projectId)?.name ?? '?'}
           official={bookingTarget(projectById.get(selected.projectId), activityById.get(selected.activityTypeId))}
-          openTasks={openTaskCounts(tasks ?? []).get(selected.projectId) ?? 0}
+          openTasks={totalOpen(openTaskCounts(tasks ?? []).get(selected.projectId))}
           color={projectById.get(selected.projectId)?.color}
           activityTypes={activitiesOf(selected.projectId, activityTypes, selected.activityTypeId)}
           onActivity={(activityTypeId) =>

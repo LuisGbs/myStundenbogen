@@ -21,17 +21,25 @@ export function allActivitiesOf(projectId: string, all: ActivityType[]): Activit
 }
 
 /**
+ * Wirksamer Standard einer Gruppe (ein Projekt bzw. die Standardliste):
+ * die aktive als Standard markierte, sonst die erste aktive.
+ */
+export function effectiveDefault(group: ActivityType[]): ActivityType | undefined {
+  const active = [...group].sort(bySortOrder).filter((a) => a.active)
+  return active.find((a) => a.isDefault) ?? active[0]
+}
+
+/**
  * Tätigkeit für eine Zeile in `projectId`: die mit gleichem Namen wie bisher
- * (`preferName`, z.B. beim Projektwechsel), sonst die erste aktive, sonst irgendeine.
- * '' = das Projekt hat keine Tätigkeit.
+ * (`preferName`, nur beim Projektwechsel einer Zeile), sonst der Standard des
+ * Projekts, sonst irgendeine. '' = das Projekt hat keine Tätigkeit.
  */
 export function defaultActivityId(projectId: string, all: ActivityType[], preferName?: string): string {
   const own = allActivitiesOf(projectId, all)
   const norm = (s: string) => s.trim().toLocaleLowerCase('de')
-  const active = own.filter((a) => a.active)
   return (
-    (preferName ? active.find((a) => norm(a.name) === norm(preferName)) : undefined)?.id ??
-    active[0]?.id ??
+    (preferName ? own.find((a) => a.active && norm(a.name) === norm(preferName)) : undefined)?.id ??
+    effectiveDefault(own)?.id ??
     own[0]?.id ??
     ''
   )
@@ -41,7 +49,16 @@ export function defaultActivityId(projectId: string, all: ActivityType[], prefer
 export function copyTemplate(projectId: string, all: ActivityType[], makeId: () => string): ActivityType[] {
   return templateActivities(all)
     .filter((a) => a.active)
-    .map((a, i) => ({ id: makeId(), projectId, name: a.name, officialName: a.officialName, code: a.code, active: true, sortOrder: i }))
+    .map((a, i) => ({
+      id: makeId(),
+      projectId,
+      name: a.name,
+      officialName: a.officialName,
+      code: a.code,
+      active: true,
+      isDefault: a.isDefault,
+      sortOrder: i,
+    }))
 }
 
 /** Anzeigename mit Nummer: „Engineering (10)“. */
@@ -51,7 +68,7 @@ export function activityLabel(a: { name: string; code?: string }): string {
 
 /**
  * Zeile auf ein anderes Projekt umhängen: Gehört die Tätigkeit schon zum neuen
- * Projekt, bleibt sie; sonst die gleichnamige dort bzw. die erste aktive.
+ * Projekt, bleibt sie; sonst die gleichnamige dort bzw. der Standard des Projekts.
  */
 export function withProject<T extends { projectId: string; activityTypeId: string }>(
   row: T,

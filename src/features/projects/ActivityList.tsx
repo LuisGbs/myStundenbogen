@@ -1,10 +1,17 @@
 import { useState, type FormEvent } from 'react'
+import { effectiveDefault } from '../../domain/activities'
 import type { ActivityType } from '../../domain/types'
 import { Icon } from '../../components/Icon'
 import { CommitInput } from '../../components/inputs'
 import { SortGrip } from '../../components/SortGrip'
 import { useSortDrag } from '../../components/useSortDrag'
-import { createActivityType, deleteActivityType, reorderActivityType, updateActivityType } from '../../storage/repo'
+import {
+  createActivityType,
+  deleteActivityType,
+  reorderActivityType,
+  toggleDefaultActivity,
+  updateActivityType,
+} from '../../storage/repo'
 import { ActiveSwitch } from './ActiveSwitch'
 import { OfficialFields } from './OfficialFields'
 
@@ -56,6 +63,9 @@ export function ActivityList({
     }
   }
 
+  // wirksamer Standard: die markierte – sonst automatisch die erste aktive
+  const standard = effectiveDefault(activities)
+
   return (
     <div className="act-list" data-testid={`activities-${owner}`}>
       <ul
@@ -76,6 +86,22 @@ export function ActivityList({
                 return trimmed
               }}
             />
+            <button
+              type="button"
+              className={`default-toggle${a.id === standard?.id ? ' is-on' : ''}${a.isDefault ? '' : ' is-auto'}`}
+              aria-pressed={a.id === standard?.id}
+              aria-label={`${a.name} als Standard`}
+              title={
+                a.isDefault
+                  ? 'Standard – wird beim Buchen vorgewählt (nochmal antippen: wieder automatisch die erste aktive)'
+                  : a.id === standard?.id
+                    ? 'Standard automatisch (erste aktive) – antippen, um sie fest als Standard zu setzen'
+                    : 'Als Standard setzen – wird beim Buchen vorgewählt'
+              }
+              onClick={() => void toggleDefaultActivity(a.id)}
+            >
+              Standard
+            </button>
             <ActiveSwitch active={a.active} onChange={(active) => void setActive(a, active)} />
             <button
               type="button"
