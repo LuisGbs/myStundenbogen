@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import type { AllocationResult } from '../../domain/allocation'
 import { clockToMinutes, formatDuration, nowClock } from '../../domain/duration'
 import { newId } from '../../domain/id'
@@ -31,23 +32,37 @@ const minutesNow = () => clockToMinutes(nowClock())
  */
 export function NowWorking({ day, result, projects, activityTypes, onChange }: Props) {
   const byRecency = useProjectsByRecency(day.date, projects).slice(0, CHIP_COUNT)
+  // nach „neuer Abschnitt“ gleich in die (leere) Notiz schreiben
+  const [focusNoteId, setFocusNoteId] = useState<string | null>(null)
+  const noteRef = useRef<HTMLInputElement>(null)
   const running = runningBlockId(day) !== null
   const active = activeAllocation(day)
   const activeProject = active && projects.find((p) => p.id === active.projectId)
   const types = active ? activitiesOf(active.projectId, activityTypes, active.activityTypeId) : []
+  // sobald der neue Abschnitt gespeichert ist, steht der Cursor in seiner Notiz
+  const activeId = active?.id
+  useEffect(() => {
+    if (activeId && activeId === focusNoteId) noteRef.current?.focus()
+  }, [activeId, focusNoteId])
 
   if (byRecency.length === 0) return null
 
   const start = (projectId: string) => {
-    // neues Projekt = neue Arbeit: dessen Standard-Tätigkeit
-    const target = { projectId, activityTypeId: defaultActivityId(projectId, activityTypes) }
     const blockId = newId()
     const rowId = newId()
     onChange((d) => {
       const now = minutesNow()
       const clockedIn = runningBlockId(d) ? d : clockIn(d, blockId)
-      return startWorkingOn(clockedIn, target, now, rowId)
+      const current = activeAllocation(clockedIn)
+      // dasselbe Projekt nochmal = neuer Abschnitt mit derselben Tätigkeit
+      if (current?.projectId === projectId) {
+        const same = { projectId: current.projectId, activityTypeId: current.activityTypeId }
+        return startWorkingOn(clockedIn, same, now, rowId, { split: true })
+      }
+      // neues Projekt = neue Arbeit: dessen Standard-Tätigkeit
+      return startWorkingOn(clockedIn, { projectId, activityTypeId: defaultActivityId(projectId, activityTypes) }, now, rowId)
     })
+    if (active?.projectId === projectId) setFocusNoteId(rowId)
   }
   const stop = () => onChange((d) => stopWorking(d, minutesNow()))
   // Notiz der laufenden Buchung – immer gegen den gespeicherten Stand ändern
@@ -74,6 +89,7 @@ export function NowWorking({ day, result, projects, activityTypes, onChange }: P
           {running
             ? 'Projekt antippen – läuft mit, bis du wechselst oder ausstempelst'
             : 'Projekt antippen = jetzt einstempeln und loslegen'}
+          {active && ' · nochmal antippen = neuer Abschnitt'}
         </span>
       </header>
 
@@ -108,10 +124,20 @@ export function NowWorking({ day, result, projects, activityTypes, onChange }: P
           <span className="num now-working__time" data-testid="now-active-time">
             {formatDuration(result.minutes[active.id] ?? 0)}
           </span>
+          <button
+            type="button"
+            className="btn btn--small"
+            title="Neuen Abschnitt im selben Projekt beginnen – der bisherige bleibt mit seiner Zeit und Notiz stehen"
+            onClick={() => start(active.projectId)}
+          >
+            <Icon name="plus" /> Neu beginnen
+          </button>
           <button type="button" className="btn btn--small" onClick={stop}>
             <Icon name="stop" /> Anhalten
           </button>
           <CommitInput
+            key={active.id}
+            ref={noteRef}
             className="input now-working__note"
             aria-label="Notiz (gerade)"
             placeholder="Notiz: woran genau? (erscheint im Monat) – oder unten eine Aufgabe mit ▶ wählen"
@@ -134,7 +160,13 @@ export function NowWorking({ day, result, projects, activityTypes, onChange }: P
               type="button"
               className={`chip${isActive ? ' is-active' : ''}`}
               aria-pressed={isActive}
-              title={running ? `Ab jetzt an ${p.name} arbeiten` : `Jetzt einstempeln und an ${p.name} arbeiten`}
+              title={
+                isActive
+                  ? `Neuen Abschnitt bei ${p.name} beginnen – der bisherige bleibt mit seiner Zeit und Notiz stehen`
+                  : running
+                    ? `Ab jetzt an ${p.name} arbeiten`
+                    : `Jetzt einstempeln und an ${p.name} arbeiten`
+              }
               data-testid={`now-chip-${p.name}`}
               onClick={() => start(p.id)}
             >

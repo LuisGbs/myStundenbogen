@@ -1,4 +1,4 @@
-import { useState, type InputHTMLAttributes } from 'react'
+import { useState, type InputHTMLAttributes, type Ref } from 'react'
 
 /**
  * Hält einen lokalen Entwurf, solange das Feld fokussiert ist, und übernimmt
@@ -20,6 +20,8 @@ type BaseInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onC
 
 interface CommitInputProps extends BaseInputProps {
   value: string
+  /** z.B. um das Feld gezielt zu fokussieren (React 19: ref als Prop) */
+  ref?: Ref<HTMLInputElement>
   /**
    * Wird bei Enter/Verlassen des Feldes aufgerufen. Gibt den neu anzuzeigenden
    * Text zurück oder null, wenn die Eingabe ungültig ist.

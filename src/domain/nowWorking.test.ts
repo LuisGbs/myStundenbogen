@@ -48,6 +48,27 @@ describe('Gerade aktives Projekt', () => {
     expect(activeAllocation(stopWorking(d1, at('12:40')))).toBeNull()
   })
 
+  it('neuer Abschnitt im selben Projekt (split): alter bleibt mit Zeit und Notiz, neuer läuft ohne Notiz', () => {
+    const d1 = startWorkingOn(day, epis, at('12:00'), 'e')
+    const noted = { ...d1, allocations: d1.allocations.map((a) => ({ ...a, note: 'Pläne prüfen' })) }
+    const d2 = startWorkingOn(noted, epis, at('12:30'), 'e2', { split: true })
+    expect(d2.allocations.map((a) => [a.id, a.projectId, a.activityTypeId, a.mode, a.value, a.note])).toEqual([
+      ['e', 'epis', 'buero', 'timeline', 30, 'Pläne prüfen'],
+      ['e2', 'epis', 'buero', 'blockRest', 0, ''],
+    ])
+    expect(activeAllocation(d2)?.id).toBe('e2')
+    expect(summarizeDay(d2, at('13:00')).allocation.minutes).toEqual({ e: 30, e2: 30 })
+    // auch mit der ganzen laufenden Zeile als Ziel: neue Id, nichts übernommen außer Projekt + Tätigkeit
+    const fromRow = startWorkingOn(noted, activeAllocation(noted)!, at('12:30'), 'neu', { split: true })
+    expect(fromRow.allocations.map((a) => [a.id, a.note])).toEqual([
+      ['e', 'Pläne prüfen'],
+      ['neu', ''],
+    ])
+    // sofort nochmal (0 Minuten): der leere Abschnitt fällt weg, keine leeren Zeilen
+    const d3 = startWorkingOn(d2, epis, at('12:30'), 'e3', { split: true })
+    expect(d3.allocations.map((a) => a.id)).toEqual(['e', 'e3'])
+  })
+
   it('Ausstempeln: das aktive Projekt behält genau die Zeit bis zum Gehen', () => {
     const d1 = startWorkingOn(day, epis, at('12:00'), 'e')
     const out = { ...d1, blocks: [day.blocks[0], { ...day.blocks[1], end: '16:30' }] }
