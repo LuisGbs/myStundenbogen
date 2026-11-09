@@ -101,3 +101,48 @@ test('„Gerade“: Notiz zur laufenden Buchung und Aufgabe mit ▶ wählen', as
   await page.getByRole('button', { name: 'Rückgängig', exact: true }).click()
   await expect(note).toHaveValue('Telefonat Bauherr')
 })
+
+test('„Gerade“: dasselbe Projekt nochmal antippen = neuer Abschnitt (eigene Zeit und Notiz)', async ({ page }) => {
+  await page.clock.install({ time: new Date('2026-10-20T07:05:00+02:00') })
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Neu beginnen' }).click()
+  await page.goto('/#/projekte')
+  await page.getByLabel('Projektname', { exact: true }).first().fill('Epis')
+  await page.getByRole('button', { name: 'Anlegen' }).click()
+  await expect(page.locator('.item-row input[aria-label="Projektname"]').last()).toHaveValue('Epis')
+  await page.goto('/#/tag/2026-10-20')
+
+  const card = page.getByTestId('now-working')
+  const time = page.getByTestId('now-active-time')
+  const rows = page.getByTestId('alloc-row')
+  const note = page.getByLabel('Notiz (gerade)')
+
+  await card.getByTestId('now-chip-Epis').click()
+  await card.getByRole('radio', { name: 'Meeting' }).click()
+  await note.fill('Pläne prüfen')
+  await note.press('Enter')
+  await expect(rows.first().getByLabel('Notiz zum Eintrag')).toHaveValue('Pläne prüfen')
+  await page.clock.fastForward('00:30:00')
+  await expect(time).toHaveText('0:30')
+
+  // Chip nochmal → neuer Abschnitt, gleiche Tätigkeit, leere Notiz mit Fokus
+  await card.getByTestId('now-chip-Epis').click()
+  await expect(rows).toHaveCount(2)
+  await expect(time).toHaveText('0:00')
+  await expect(note).toHaveValue('')
+  await expect(note).toBeFocused()
+  await expect(card.getByRole('radio', { name: 'Meeting' })).toHaveAttribute('aria-checked', 'true')
+  await expect(rows.nth(0).getByTestId('alloc-result')).toHaveText('0:30')
+  await expect(rows.nth(0).getByLabel('Notiz zum Eintrag')).toHaveValue('Pläne prüfen')
+  await expect(rows.nth(0).getByRole('radio', { name: 'Meeting' })).toHaveAttribute('aria-checked', 'true')
+
+  // Knopf „Neu beginnen“ in der Karte macht dasselbe
+  await note.fill('Rückruf Statiker')
+  await note.press('Enter')
+  await page.clock.fastForward('00:15:00')
+  await card.getByRole('button', { name: 'Neu beginnen' }).click()
+  await expect(rows).toHaveCount(3)
+  await expect(rows.nth(1).getByTestId('alloc-result')).toHaveText('0:15')
+  await expect(rows.nth(1).getByLabel('Notiz zum Eintrag')).toHaveValue('Rückruf Statiker')
+  await expect(note).toHaveValue('')
+})

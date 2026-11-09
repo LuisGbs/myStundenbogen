@@ -37,19 +37,32 @@ export function stopWorking(day: Day, nowMinutes: Minutes): Day {
 /**
  * Ab jetzt an `target` arbeiten: Das bisher aktive Projekt wird angehalten, das neue
  * kommt als „Rest im Block“ ans Ende des laufenden Blocks und läuft dort mit.
- * Ist dasselbe Projekt schon aktiv, bleibt alles, wie es ist. Ohne laufenden Block: unverändert.
+ * Ist dasselbe Projekt schon aktiv, bleibt alles, wie es ist – außer mit `split`:
+ * Dann beginnt ein neuer Abschnitt (der bisherige bleibt mit Zeit und Notiz stehen).
+ * Ohne laufenden Block: unverändert.
  */
 export function startWorkingOn(
   day: Day,
   target: { projectId: string; activityTypeId: string },
   nowMinutes: Minutes,
   newId: string,
+  options: { split?: boolean } = {},
 ): Day {
   const blockId = runningBlockId(day)
   if (!blockId) return day
   const active = activeAllocation(day)
-  if (active && active.projectId === target.projectId && active.activityTypeId === target.activityTypeId) return day
+  const same = active && active.projectId === target.projectId && active.activityTypeId === target.activityTypeId
+  if (same && !options.split) return day
   const stopped = stopWorking(day, nowMinutes)
-  const created: Allocation = { id: newId, ...target, mode: 'blockRest', value: 0, note: '', blockId }
+  // nur Projekt + Tätigkeit übernehmen (target kann auch eine ganze Zeile sein)
+  const created: Allocation = {
+    id: newId,
+    projectId: target.projectId,
+    activityTypeId: target.activityTypeId,
+    mode: 'blockRest',
+    value: 0,
+    note: '',
+    blockId,
+  }
   return { ...stopped, allocations: [...stopped.allocations, created] }
 }
