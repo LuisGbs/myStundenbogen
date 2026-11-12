@@ -52,6 +52,10 @@ export function DayPage({ date }: { date: ISODate }) {
     dayDiff: (recorded ?? 0) - target,
     recorded: recorded !== null,
     week: weekSummary(weekDays, date, settings, today, nowMinutes),
+    // hellgrau im Wochenbalken: laufender Block bis „Geplant“ und die graue Vorlage
+    // (ein noch ungespeicherter Tag ist nicht in weekDays → seinen Plan dazurechnen)
+    weekWithPlan:
+      weekSummary(weekDays, date, settings, today, expected?.end ?? nowMinutes, true).worked + (stored ? 0 : planned),
     forecast: expected && {
       expected,
       worked: forecastWorked(day, expected.end),

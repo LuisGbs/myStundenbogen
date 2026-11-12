@@ -629,9 +629,18 @@
 }
 
 .week-line__fill {
+  position: absolute;
+  left: 0;
+  top: 0;
   height: 100%;
   border-radius: 999px;
   background: var(--accent);
+}
+
+/* noch geplant (laufender Block bis „Geplant“, graue Vorlage) – hellgrau hinter dem Gestempelten */
+.week-line__fill.is-planned {
+  background: var(--border-strong);
+  opacity: 0.55;
 }
 
 .week-line__fill.is-over {

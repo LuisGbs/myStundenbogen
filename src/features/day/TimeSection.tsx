@@ -20,6 +20,8 @@ export interface DayBalance {
   recorded: boolean
   /** Woche Mo–So: gearbeitet, Soll, Höchstarbeitszeit. */
   week: WeekSummary
+  /** Woche inkl. Geplantem (laufender Block bis „Geplant“, graue Vorlage-Blöcke) – hellgrau im Balken. */
+  weekWithPlan: Minutes
   /** Eingestempelt: so sähe es aus, wenn man wie vorgesehen geht. */
   forecast: {
     expected: ExpectedEnd
@@ -258,7 +260,7 @@ function BalanceLine({ balance }: { balance: DayBalance }) {
         Tag <strong className="num" data-testid="day-diff">{formatSignedDuration(dayDiff)}</strong>
         {!recorded && target > 0 && <span className="muted"> (noch nichts erfasst)</span>}
       </span>
-      <WeekLine week={balance.week} />
+      <WeekLine week={balance.week} withPlan={balance.weekWithPlan} />
     </div>
   )
 }
@@ -370,8 +372,9 @@ function EndTimesView({
   )
 }
 
-function WeekLine({ week }: { week: WeekSummary }) {
-  const scale = Math.max(week.max, week.worked, week.target, 1)
+function WeekLine({ week, withPlan }: { week: WeekSummary; withPlan: Minutes }) {
+  const plannedExtra = Math.max(0, withPlan - week.worked)
+  const scale = Math.max(week.max, week.worked + plannedExtra, week.target, 1)
   const pct = (m: Minutes) => `${Math.min(100, (m / scale) * 100)}%`
   return (
     <div className="week-line" data-testid="week-line">
@@ -379,6 +382,12 @@ function WeekLine({ week }: { week: WeekSummary }) {
         <span>
           KW {week.weekNumber} ({formatDateShort(week.from)}–{formatDateShort(week.to)}): gearbeitet{' '}
           <strong className="num" data-testid="week-worked">{formatDuration(week.worked)}</strong> h
+          {plannedExtra > 0 && (
+            <span className="muted" data-testid="week-planned">
+              {' '}
+              (+ {formatDuration(plannedExtra)} geplant)
+            </span>
+          )}
         </span>
         <span className={week.toTarget <= 0 ? 'is-plus' : undefined}>
           {week.toTarget > 0 ? (
@@ -408,6 +417,13 @@ function WeekLine({ week }: { week: WeekSummary }) {
         </span>
       </div>
       <div className="week-line__bar" aria-hidden="true">
+        {plannedExtra > 0 && (
+          <div
+            className="week-line__fill is-planned"
+            style={{ width: pct(week.worked + plannedExtra) }}
+            title={`inkl. geplant ${formatDuration(week.worked + plannedExtra)}`}
+          />
+        )}
         <div className={`week-line__fill${week.toMax < 0 ? ' is-over' : ''}`} style={{ width: pct(week.worked) }} />
         <div className="week-line__mark" style={{ left: pct(week.target) }} title={`Soll ${formatDuration(week.target)}`} />
         <div className="week-line__mark is-max" style={{ left: pct(week.max) }} title={`Max. ${formatDuration(week.max)}`} />
