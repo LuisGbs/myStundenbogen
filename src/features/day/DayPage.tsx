@@ -5,7 +5,7 @@ import { endTimes, templateMinutes } from '../../domain/endTimes'
 import { expectedEnd, forecastWorked } from '../../domain/forecast'
 import { holidayOn, type Holiday } from '../../domain/holidays'
 import { withPlannedBlocks } from '../../domain/plan'
-import { targetMinutes, weekSummary } from '../../domain/target'
+import { targetMinutes, weekBreakdown, weekSummary } from '../../domain/target'
 import { layoutTimeline } from '../../domain/timeline'
 import type { Day, ISODate } from '../../domain/types'
 import { Icon } from '../../components/Icon'
@@ -52,10 +52,8 @@ export function DayPage({ date }: { date: ISODate }) {
     dayDiff: (recorded ?? 0) - target,
     recorded: recorded !== null,
     week: weekSummary(weekDays, date, settings, today, nowMinutes),
-    // hellgrau im Wochenbalken: laufender Block bis „Geplant“ und die graue Vorlage
-    // (ein noch ungespeicherter Tag ist nicht in weekDays → seinen Plan dazurechnen)
-    weekWithPlan:
-      weekSummary(weekDays, date, settings, today, expected?.end ?? nowMinutes, true).worked + (stored ? 0 : planned),
+    // Wochenbalken Tag für Tag: gestempelt blau, Rest von heute und kommende Tage hellgrau
+    weekBars: weekBreakdown(weekDays, date, settings, today, nowMinutes, expected?.end ?? null),
     forecast: expected && {
       expected,
       worked: forecastWorked(day, expected.end),

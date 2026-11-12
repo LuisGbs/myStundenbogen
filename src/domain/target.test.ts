@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { emptyDay } from './day'
 import { holidayOn } from './holidays'
-import { targetMinutes, weeklyTarget, weekSummary } from './target'
+import { targetMinutes, weekBreakdown, weeklyTarget, weekSummary } from './target'
 import type { Day } from './types'
 
 const settings = {
@@ -51,5 +51,42 @@ describe('Wochenübersicht', () => {
     const w = weekSummary(days, '2026-05-14', week, '2026-05-20') // Auffahrt am Do
     expect(w.target).toBe(4 * 498)
     expect(w.toMax).toBe(2700 - 3000)
+  })
+})
+
+describe('Wochenbalken Tag für Tag', () => {
+  const plan = { ...settings, weeklyMaxMinutes: 45 * 60, dayTemplate: [
+    { start: '07:00', end: '11:33' },
+    { start: '12:03', end: '16:30' },
+  ] }
+  // KW 46 2026: Mo 09.11. – So 15.11., heute Do 12.11.
+  const thursday: Day = {
+    ...emptyDay('2026-11-12'),
+    blocks: [
+      { id: 'a', start: '07:13', end: null },
+      { id: 'plan-1', start: '12:03', end: '16:30', planned: true },
+    ],
+  }
+  const days = [worked('2026-11-09', 540), worked('2026-11-10', 520), thursday]
+  const bars = (extra: Day[] = [], s: Parameters<typeof weekBreakdown>[2] = plan) =>
+    weekBreakdown([...days, ...extra], '2026-11-12', s, '2026-11-12', 9 * 60 + 20, 11 * 60 + 33)
+
+  it('vergangen gestempelt, vergessener Tag leer, heute Rest bis „Geplant“ + Nachmittag, Fr Vorlage, Wochenende 0', () => {
+    expect(bars().map((b) => [b.date.slice(8), b.stamped, b.planned])).toEqual([
+      ['09', 540, 0],
+      ['10', 520, 0],
+      ['11', 0, 0], // Mittwoch vergessen: nicht „geplant“
+      ['12', 127, 133 + 267], // 07:13–09:20 gestempelt, bis 11:33 + Nachmittag geplant
+      ['13', 0, 540],
+      ['14', 0, 0],
+      ['15', 0, 0],
+    ])
+    expect(bars().find((b) => b.isToday)?.date).toBe('2026-11-12')
+  })
+
+  it('kommender Tag mit Eintrag (z.B. 0:00 für Urlaub) und Feiertag zählen entsprechend', () => {
+    expect(bars([worked('2026-11-13', 0)])[4].planned).toBe(0)
+    const withHoliday = { ...plan, customHolidays: [{ date: '2026-11-13', name: 'Brückentag', share: 1 as const }] }
+    expect(bars([], withHoliday)[4].planned).toBe(0)
   })
 })

@@ -623,28 +623,57 @@
 
 .week-line__bar {
   position: relative;
-  height: 6px;
+  display: flex;
+  height: 8px;
   border-radius: 999px;
   background: var(--surface-2);
+  overflow: visible;
 }
 
-.week-line__fill {
-  position: absolute;
-  left: 0;
-  top: 0;
+/* ein Stück je Tag: gestempelt blau (abwechselnd heller), geplant hellgrau */
+.week-line__day {
+  flex: none;
   height: 100%;
-  border-radius: 999px;
   background: var(--accent);
+  box-shadow: inset -1px 0 0 var(--surface);
 }
 
-/* noch geplant (laufender Block bis „Geplant“, graue Vorlage) – hellgrau hinter dem Gestempelten */
-.week-line__fill.is-planned {
-  background: var(--border-strong);
-  opacity: 0.55;
+.week-line__day.is-alt {
+  background: color-mix(in srgb, var(--accent) 62%, var(--surface));
 }
 
-.week-line__fill.is-over {
+.week-line__day.is-over {
   background: var(--danger);
+}
+
+.week-line__day.is-planned {
+  background: var(--border-strong);
+  opacity: 0.6;
+}
+
+.week-line__day.is-today {
+  box-shadow:
+    inset -1px 0 0 var(--surface),
+    inset 0 2px 0 var(--text);
+}
+
+.week-line__day:first-child {
+  border-radius: 999px 0 0 999px;
+}
+
+.week-line__days {
+  display: flex;
+  margin-top: -0.15rem;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  line-height: 1;
+}
+
+.week-line__days span {
+  flex: none;
+  overflow: hidden;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .week-line__mark {

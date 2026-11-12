@@ -18,10 +18,6 @@ test('geplanter Arbeitstag: Vorlage grau vorbelegt, Projekte verteilen, echte St
   // Geplantes zählt noch nicht als gearbeitet – steht nur als Hinweis daneben
   await expect(page.getByTestId('worked-total')).toHaveText('–')
   await expect(page.getByTestId('planned-total')).toHaveText('+ 9:00 geplant')
-  // Wochenbalken: Geplantes hellgrau hinter dem Gestempelten
-  await expect(page.getByTestId('week-worked')).toHaveText('0:00')
-  await expect(page.getByTestId('week-planned')).toHaveText('(+ 9:00 geplant)')
-  await expect(page.locator('.week-line__fill.is-planned')).toHaveCount(1)
   const timeline = page.getByTestId('timeline')
   await expect(timeline.locator('.timeline__block.is-planned')).toHaveCount(2)
   await expect(timeline.locator('.timeline__labels')).toContainText('geplant')
@@ -43,7 +39,6 @@ test('geplanter Arbeitstag: Vorlage grau vorbelegt, Projekte verteilen, echte St
   // gestempelt 07:12–11:33 = 4:21, der Nachmittag (4:27) ist noch geplant
   await expect(page.getByTestId('worked-total')).toHaveText('4:21')
   await expect(page.getByTestId('planned-total')).toHaveText('+ 4:27 geplant')
-  await expect(page.getByTestId('week-planned')).toHaveText('(+ 4:27 geplant)')
   await page.getByLabel('Block 2 Ende').fill('16:00')
   await expect(planned).toHaveCount(0)
   await expect(page.getByTestId('plan-note')).toHaveCount(0)

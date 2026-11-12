@@ -5,7 +5,7 @@ import { newId } from '../../domain/id'
 import { clockIn as clockInDay, confirmPlan, editBlock, hasPlannedBlocks } from '../../domain/plan'
 import { MIN_BREAK_MINUTES, type EndTimes } from '../../domain/endTimes'
 import type { ExpectedEnd } from '../../domain/forecast'
-import type { WeekSummary } from '../../domain/target'
+import type { WeekDayBar, WeekSummary } from '../../domain/target'
 import type { Day, Minutes, TimeBlock, TimeMode } from '../../domain/types'
 import { Icon } from '../../components/Icon'
 import { CommitInput, TimeInput } from '../../components/inputs'
@@ -20,8 +20,8 @@ export interface DayBalance {
   recorded: boolean
   /** Woche Mo–So: gearbeitet, Soll, Höchstarbeitszeit. */
   week: WeekSummary
-  /** Woche inkl. Geplantem (laufender Block bis „Geplant“, graue Vorlage-Blöcke) – hellgrau im Balken. */
-  weekWithPlan: Minutes
+  /** Wochenbalken Tag für Tag: gestempelt (blau) und geplant (hellgrau). */
+  weekBars: WeekDayBar[]
   /** Eingestempelt: so sähe es aus, wenn man wie vorgesehen geht. */
   forecast: {
     expected: ExpectedEnd
@@ -260,7 +260,7 @@ function BalanceLine({ balance }: { balance: DayBalance }) {
         Tag <strong className="num" data-testid="day-diff">{formatSignedDuration(dayDiff)}</strong>
         {!recorded && target > 0 && <span className="muted"> (noch nichts erfasst)</span>}
       </span>
-      <WeekLine week={balance.week} withPlan={balance.weekWithPlan} />
+      <WeekLine week={balance.week} bars={balance.weekBars} />
     </div>
   )
 }
@@ -372,20 +372,49 @@ function EndTimesView({
   )
 }
 
-function WeekLine({ week, withPlan }: { week: WeekSummary; withPlan: Minutes }) {
-  const plannedExtra = Math.max(0, withPlan - week.worked)
-  const scale = Math.max(week.max, week.worked + plannedExtra, week.target, 1)
-  const pct = (m: Minutes) => `${Math.min(100, (m / scale) * 100)}%`
+const WEEKDAY_SHORT = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
+
+/**
+ * Wochenbalken Tag für Tag: Gestempeltes in Blau (Tage abwechselnd heller/dunkler),
+ * noch Geplantes (Rest von heute, kommende Tage) in Hellgrau. Skala bis zur
+ * Höchstarbeitszeit, Striche bei Soll und Max.
+ */
+function WeekLine({ week, bars }: { week: WeekSummary; bars: WeekDayBar[] }) {
+  const plannedTotal = bars.reduce((sum, b) => sum + b.planned, 0)
+  const forecast = week.worked + plannedTotal
+  const scale = Math.max(week.max, forecast, week.target, 1)
+  const share = (m: Minutes) => Math.min(100, (m / scale) * 100)
+  const pct = (m: Minutes) => `${share(m)}%`
+  // Stücke in Reihenfolge: je Tag erst gestempelt, dann geplant
+  const pieces = bars.flatMap((b, i) => {
+    const label = `${WEEKDAY_SHORT[i]} ${formatDateShort(b.date)}`
+    return [
+      b.stamped > 0 && {
+        key: `${b.date}-s`,
+        minutes: b.stamped,
+        className: `week-line__day${i % 2 ? ' is-alt' : ''}${b.isToday ? ' is-today' : ''}${week.toMax < 0 ? ' is-over' : ''}`,
+        title: `${label}: ${formatDuration(b.stamped)} gestempelt`,
+        day: WEEKDAY_SHORT[i],
+      },
+      b.planned > 0 && {
+        key: `${b.date}-p`,
+        minutes: b.planned,
+        className: `week-line__day is-planned${b.isToday ? ' is-today' : ''}`,
+        title: `${label}: ${formatDuration(b.planned)} geplant`,
+        day: b.stamped > 0 ? '' : WEEKDAY_SHORT[i],
+      },
+    ].filter((p): p is Exclude<typeof p, false> => !!p)
+  })
   return (
     <div className="week-line" data-testid="week-line">
       <div className="week-line__text">
         <span>
           KW {week.weekNumber} ({formatDateShort(week.from)}–{formatDateShort(week.to)}): gearbeitet{' '}
           <strong className="num" data-testid="week-worked">{formatDuration(week.worked)}</strong> h
-          {plannedExtra > 0 && (
+          {plannedTotal > 0 && (
             <span className="muted" data-testid="week-planned">
               {' '}
-              (+ {formatDuration(plannedExtra)} geplant)
+              (+ {formatDuration(plannedTotal)} geplant bis So)
             </span>
           )}
         </span>
@@ -415,18 +444,32 @@ function WeekLine({ week, withPlan }: { week: WeekSummary; withPlan: Minutes }) 
             </>
           )}
         </span>
-      </div>
-      <div className="week-line__bar" aria-hidden="true">
-        {plannedExtra > 0 && (
-          <div
-            className="week-line__fill is-planned"
-            style={{ width: pct(week.worked + plannedExtra) }}
-            title={`inkl. geplant ${formatDuration(week.worked + plannedExtra)}`}
-          />
+        {week.toMax >= 0 && forecast > week.max && (
+          <span className="is-minus small" data-testid="week-plan-over">
+            Plan liegt {formatDuration(forecast - week.max)} über der Höchstarbeitszeit
+          </span>
         )}
-        <div className={`week-line__fill${week.toMax < 0 ? ' is-over' : ''}`} style={{ width: pct(week.worked) }} />
+      </div>
+      <div className="week-line__bar" data-testid="week-bar">
+        {pieces.map((p) => (
+          <div
+            key={p.key}
+            className={p.className}
+            style={{ width: pct(p.minutes) }}
+            title={p.title}
+            data-testid="week-day"
+            aria-label={p.title}
+          />
+        ))}
         <div className="week-line__mark" style={{ left: pct(week.target) }} title={`Soll ${formatDuration(week.target)}`} />
         <div className="week-line__mark is-max" style={{ left: pct(week.max) }} title={`Max. ${formatDuration(week.max)}`} />
+      </div>
+      <div className="week-line__days" aria-hidden="true">
+        {pieces.map((p) => (
+          <span key={p.key} style={{ width: pct(p.minutes) }}>
+            {share(p.minutes) >= 4 ? p.day : ''}
+          </span>
+        ))}
       </div>
     </div>
   )
