@@ -2,7 +2,7 @@ import { addDays, formatDateLong, isISODate, todayISO, weekStart } from '../../d
 import { emptyDay, summarizeDay } from '../../domain/day'
 import { plannedMinutes, stampedMinutes } from '../../domain/dayTotal'
 import { endTimes, templateMinutes } from '../../domain/endTimes'
-import { expectedEnd, forecastWorked } from '../../domain/forecast'
+import { expectedEnd, forecastWorked, runningRest } from '../../domain/forecast'
 import { holidayOn, type Holiday } from '../../domain/holidays'
 import { withPlannedBlocks } from '../../domain/plan'
 import { targetMinutes, weekBreakdown, weekSummary } from '../../domain/target'
@@ -46,7 +46,8 @@ export function DayPage({ date }: { date: ISODate }) {
   // Oben zählt nur Gestempeltes – geplante Blöcke (Vorlage) sind noch nicht gearbeitet.
   // Verteilung und Zeitleiste rechnen weiter mit dem Plan (stabile Skala).
   const recorded = stored ? stampedMinutes(day, nowMinutes) : null
-  const planned = plannedMinutes(day)
+  // Noch geplant: graue Vorlage-Blöcke + Rest des laufenden Blocks bis „voraussichtlich gehen“
+  const planned = plannedMinutes(day) + runningRest(expected, nowMinutes)
   const balance: DayBalance = {
     target,
     dayDiff: (recorded ?? 0) - target,

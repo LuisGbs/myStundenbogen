@@ -853,3 +853,12 @@ button.end-times__tile:focus-visible {
 .timeline-panel__tasks {
   margin-left: auto;
 }
+
+/* laufender Block: Rest bis „voraussichtlich gehen“ – nur Hinweis */
+.block-row__planned {
+  margin-left: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 450;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
