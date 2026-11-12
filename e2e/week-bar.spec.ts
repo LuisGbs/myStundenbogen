@@ -31,6 +31,8 @@ test('Wochenbalken Tag für Tag: Gestempeltes blau, heute Rest + kommende Tage h
   await expect(pieces.nth(3)).toHaveClass(/is-planned/)
   // laufender Block: Rest bis 11:33 als Hinweis; unten zählt er zum Geplanten mit
   await expect(page.getByTestId('running-planned')).toHaveText('+ 2:13 geplant bis 11:33')
+  await expect(page.getByTestId('running-end-ghost')).toHaveAttribute('data-ghost', '11:33')
+  await expect(page.getByLabel('Block 1 Ende')).toHaveValue('')
   await expect(page.getByTestId('planned-total')).toHaveText('+ 6:40 geplant')
   await expect(page.getByTestId('worked-total')).toHaveText('2:07')
 })

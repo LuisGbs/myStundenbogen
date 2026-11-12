@@ -177,12 +177,26 @@ function BlocksEditor({
               onCommit={(start) => updateBlock(block.id, { start })}
             />
             <span className="block-row__dash">–</span>
-            <TimeInput
-              className="input input--time"
-              aria-label={`Block ${i + 1} Ende`}
-              value={block.end ?? ''}
-              onCommit={(end) => updateBlock(block.id, { end })}
-            />
+            {(() => {
+              const endInput = (className: string) => (
+                <TimeInput
+                  className={className}
+                  aria-label={`Block ${i + 1} Ende`}
+                  value={block.end ?? ''}
+                  onCommit={(end) => updateBlock(block.id, { end })}
+                />
+              )
+              // Laufender Block: voraussichtliches Ende hellgrau im leeren Feld (wie geplante Zeiten)
+              const ghost =
+                isRunning(block) && expected?.blockId === block.id && rest > 0 ? minutesToClock(expected.end) : null
+              return ghost ? (
+                <span className="block-row__ghost" data-ghost={ghost} data-testid="running-end-ghost">
+                  {endInput('input input--time is-ghost')}
+                </span>
+              ) : (
+                endInput('input input--time')
+              )
+            })()}
             <span className={`block-row__duration num${isRunning(block) ? ' is-running' : ''}`}>
               {analysis.perBlock[i] === null ? '–' : formatDuration(analysis.perBlock[i]!)}
               {isRunning(block) && <span className="badge badge--live">läuft</span>}
