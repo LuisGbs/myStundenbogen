@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { formatDateShort } from '../../domain/date'
 import { analyzeBlocks, type BlockIssue } from '../../domain/dayTotal'
 import { clockToMinutes, formatDuration, formatSignedDuration, minutesToClock, nowClock, parseDuration } from '../../domain/duration'
@@ -61,6 +62,37 @@ export function TimeSection({ day, isToday, nowMinutes, worked, planned, balance
       totalMinutes: mode === 'total' && d.totalMinutes === null && worked ? worked : d.totalMinutes,
     }))
 
+  // Tagessumme: Tagessaldo, noch geplant, gearbeitet – rechts neben „Gehen (jetzt)“ / „+ Block“
+  const { dayDiff, recorded, target } = balance
+  const dayTotals = (
+    <div className="day-totals" data-testid="day-totals">
+      {/* Soll steht heute schon in der „Gehen“-Zeile */}
+      {!balance.endTimes && (
+        <span>
+          Soll <strong className="num">{formatDuration(target)}</strong>
+        </span>
+      )}
+      <span
+        className={`day-totals__diff${dayDiff < 0 ? ' is-minus' : dayDiff > 0 ? ' is-plus' : ''}`}
+        title={`Gestempelt − Soll ${formatDuration(target)}`}
+      >
+        Tag <strong className="num" data-testid="day-diff">{formatSignedDuration(dayDiff)}</strong>
+        {!recorded && target > 0 && <span className="muted small"> (noch nichts erfasst)</span>}
+      </span>
+      {planned > 0 && (
+        <span className="muted small" data-testid="planned-total" title="Graue Blöcke aus der Vorlage und Rest bis „voraussichtlich gehen“ – zählen erst, wenn gestempelt">
+          + {formatDuration(planned)} geplant
+        </span>
+      )}
+      <span className="day-totals__worked">
+        Gearbeitet{' '}
+        <strong className="num" data-testid="worked-total">
+          {worked === null ? '–' : formatDuration(worked)}
+        </strong>
+      </span>
+    </div>
+  )
+
   return (
     <section className="card">
       <header className="card__head">
@@ -74,13 +106,16 @@ export function TimeSection({ day, isToday, nowMinutes, worked, planned, balance
           isToday={isToday}
           nowMinutes={nowMinutes}
           expected={balance.forecast?.expected ?? null}
+          totals={dayTotals}
           onChange={onChange}
         />
       ) : (
-        <TotalEditor day={day} onChange={onChange} />
+        <>
+          <TotalEditor day={day} onChange={onChange} />
+          <div className="blocks__actions">{dayTotals}</div>
+        </>
       )}
 
-      <BalanceLine balance={balance} />
       {balance.endTimes && (
         <EndTimesView
           ends={balance.endTimes}
@@ -101,17 +136,11 @@ export function TimeSection({ day, isToday, nowMinutes, worked, planned, balance
         />
       )}
 
-      <div className="worked-total">
-        {planned > 0 && (
-          <span className="muted small" data-testid="planned-total" title="Graue Blöcke aus der Vorlage – zählen erst, wenn gestempelt">
-            + {formatDuration(planned)} geplant
-          </span>
-        )}
-        <span>Gearbeitet</span>
-        <strong className="num" data-testid="worked-total">
-          {worked === null ? '–' : formatDuration(worked)}
-        </strong>
+      {/* Woche: Saldo und Balken Tag für Tag */}
+      <div className="balance-line" data-testid="balance-line">
+        <WeekLine week={balance.week} bars={balance.weekBars} />
       </div>
+
     </section>
   )
 }
@@ -121,8 +150,9 @@ function BlocksEditor({
   isToday,
   nowMinutes,
   expected,
+  totals,
   onChange,
-}: Omit<Props, 'worked' | 'planned' | 'balance'> & { expected: ExpectedEnd | null }) {
+}: Omit<Props, 'worked' | 'planned' | 'balance'> & { expected: ExpectedEnd | null; totals: ReactNode }) {
   // laufender Block: Rest bis „voraussichtlich gehen“ als grauer Hinweis
   const rest = runningRest(expected, nowMinutes)
   const analysis = analyzeBlocks(day.blocks, nowMinutes)
@@ -235,6 +265,7 @@ function BlocksEditor({
         <button type="button" className="btn" onClick={addBlock}>
           <Icon name="plus" /> Block
         </button>
+        {totals}
       </div>
     </div>
   )
@@ -278,22 +309,6 @@ function TotalEditor({ day, onChange }: Pick<Props, 'day' | 'onChange'>) {
         />
       </label>
       <p className="muted small">Formate: 8:18 · 8,3 · 8h18 · 498m</p>
-    </div>
-  )
-}
-
-function BalanceLine({ balance }: { balance: DayBalance }) {
-  const { target, dayDiff, recorded } = balance
-  return (
-    <div className="balance-line" data-testid="balance-line">
-      <span>
-        Soll <strong className="num">{formatDuration(target)}</strong>
-      </span>
-      <span className={dayDiff < 0 ? 'is-minus' : dayDiff > 0 ? 'is-plus' : undefined}>
-        Tag <strong className="num" data-testid="day-diff">{formatSignedDuration(dayDiff)}</strong>
-        {!recorded && target > 0 && <span className="muted"> (noch nichts erfasst)</span>}
-      </span>
-      <WeekLine week={balance.week} bars={balance.weekBars} />
     </div>
   )
 }

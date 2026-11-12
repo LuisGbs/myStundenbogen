@@ -67,20 +67,35 @@
   margin: 0;
 }
 
-.worked-total {
+/* Tagessumme rechts neben „Gehen (jetzt)“ / „+ Block“ */
+.day-totals {
   display: flex;
   align-items: baseline;
+  flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 0.6rem;
-  margin-top: 0.85rem;
-  padding-top: 0.75rem;
-  border-top: 1px solid var(--border);
+  gap: 0.3rem 1rem;
+  margin-left: auto;
   color: var(--text-muted);
 }
 
-.worked-total strong {
-  font-size: 1.5rem;
+.day-totals strong {
   color: var(--text);
+}
+
+.day-totals__diff.is-minus strong {
+  color: var(--danger);
+}
+
+.day-totals__diff.is-plus strong {
+  color: var(--ok);
+}
+
+.day-totals__worked strong {
+  font-size: 1.5rem;
+}
+
+.blocks__actions {
+  align-items: center;
 }
 
 /* ---------- Projektzeilen ---------- */
