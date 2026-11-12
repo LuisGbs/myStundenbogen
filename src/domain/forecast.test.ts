@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { emptyDay, summarizeDay } from './day'
-import { defaultExpectedEnd, expectedEnd, forecastWorked } from './forecast'
+import { defaultExpectedEnd, expectedEnd, forecastWorked, runningRest } from './forecast'
 import { startWorkingOn } from './nowWorking'
 import { editBlock, TEMPLATE_9H } from './plan'
 import { layoutTimeline } from './timeline'
@@ -85,5 +85,15 @@ describe('Zeitleiste mit voraussichtlichem Ende', () => {
     const now = at('12:07')
     const layout = layoutTimeline(fresh, summarizeDay(fresh, now).allocation, now, expectedEnd(fresh, TEMPLATE_9H, now))!
     expect(layout.blocks[0].segments.map((s) => s.kind)).toEqual(['future'])
+  })
+})
+
+describe('Rest des laufenden Blocks bis „voraussichtlich gehen“', () => {
+  it('Minuten bis zum Ende, nie negativ, 0 ohne laufenden Block', () => {
+    const e = { blockId: 'a', end: 11 * 60 + 33, planned: 11 * 60 + 33, custom: false, isPast: false }
+    expect(runningRest(e, 9 * 60 + 47)).toBe(106)
+    expect(runningRest({ ...e, end: 12 * 60 }, 12 * 60)).toBe(0)
+    expect(runningRest(null, 600)).toBe(0)
+    expect(runningRest(e, null)).toBe(0)
   })
 })

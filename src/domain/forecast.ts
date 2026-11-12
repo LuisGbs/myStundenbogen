@@ -44,3 +44,9 @@ export function expectedEnd(day: Day, template: TemplateBlock[], nowMinutes: Min
 export function forecastWorked(day: Day, end: Minutes): Minutes {
   return workedMinutes(day, end) ?? 0
 }
+
+/** Noch geplante Minuten des laufenden Blocks bis „voraussichtlich gehen“ (0 ohne laufenden Block). */
+export function runningRest(expected: ExpectedEnd | null, nowMinutes: Minutes | null): Minutes {
+  if (!expected || nowMinutes === null) return 0
+  return Math.max(0, expected.end - nowMinutes)
+}

@@ -4,7 +4,7 @@ import { clockToMinutes, formatDuration, formatSignedDuration, minutesToClock, n
 import { newId } from '../../domain/id'
 import { clockIn as clockInDay, confirmPlan, editBlock, hasPlannedBlocks } from '../../domain/plan'
 import { MIN_BREAK_MINUTES, type EndTimes } from '../../domain/endTimes'
-import type { ExpectedEnd } from '../../domain/forecast'
+import { runningRest, type ExpectedEnd } from '../../domain/forecast'
 import type { WeekDayBar, WeekSummary } from '../../domain/target'
 import type { Day, Minutes, TimeBlock, TimeMode } from '../../domain/types'
 import { Icon } from '../../components/Icon'
@@ -69,7 +69,13 @@ export function TimeSection({ day, isToday, nowMinutes, worked, planned, balance
       </header>
 
       {day.timeMode === 'blocks' ? (
-        <BlocksEditor day={day} isToday={isToday} nowMinutes={nowMinutes} onChange={onChange} />
+        <BlocksEditor
+          day={day}
+          isToday={isToday}
+          nowMinutes={nowMinutes}
+          expected={balance.forecast?.expected ?? null}
+          onChange={onChange}
+        />
       ) : (
         <TotalEditor day={day} onChange={onChange} />
       )}
@@ -110,7 +116,15 @@ export function TimeSection({ day, isToday, nowMinutes, worked, planned, balance
   )
 }
 
-function BlocksEditor({ day, isToday, nowMinutes, onChange }: Omit<Props, 'worked' | 'planned' | 'balance'>) {
+function BlocksEditor({
+  day,
+  isToday,
+  nowMinutes,
+  expected,
+  onChange,
+}: Omit<Props, 'worked' | 'planned' | 'balance'> & { expected: ExpectedEnd | null }) {
+  // laufender Block: Rest bis „voraussichtlich gehen“ als grauer Hinweis
+  const rest = runningRest(expected, nowMinutes)
   const analysis = analyzeBlocks(day.blocks, nowMinutes)
   const running = day.blocks.find((b) => b.end === null)
   const isRunning = (b: TimeBlock) => b.end === null && analysis.running
@@ -172,6 +186,11 @@ function BlocksEditor({ day, isToday, nowMinutes, onChange }: Omit<Props, 'worke
             <span className={`block-row__duration num${isRunning(block) ? ' is-running' : ''}`}>
               {analysis.perBlock[i] === null ? '–' : formatDuration(analysis.perBlock[i]!)}
               {isRunning(block) && <span className="badge badge--live">läuft</span>}
+              {isRunning(block) && expected?.blockId === block.id && rest > 0 && (
+                <span className="block-row__planned" data-testid="running-planned">
+                  + {formatDuration(rest)} geplant bis {minutesToClock(expected.end)}
+                </span>
+              )}
               {block.planned && <span className="badge badge--muted">geplant</span>}
             </span>
             <button
