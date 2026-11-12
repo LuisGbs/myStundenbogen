@@ -862,3 +862,34 @@ button.end-times__tile:focus-visible {
   color: var(--text-muted);
   white-space: nowrap;
 }
+
+/* leeres Ende des laufenden Blocks: voraussichtliches Ende hellgrau (wie geplante Zeiten) */
+.block-row__ghost {
+  position: relative;
+  display: inline-flex;
+}
+
+.block-row__ghost::after {
+  content: attr(data-ghost);
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.input.is-ghost:not(:focus) {
+  border-style: dashed;
+  background: var(--surface-2);
+}
+
+/* das „--:--“ des leeren Felds ausblenden, solange der Platzhalter steht */
+.input.is-ghost:not(:focus)::-webkit-datetime-edit {
+  opacity: 0;
+}
+
+.block-row__ghost:focus-within::after {
+  display: none;
+}
