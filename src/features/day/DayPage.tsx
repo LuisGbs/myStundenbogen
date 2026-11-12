@@ -1,5 +1,6 @@
 import { addDays, formatDateLong, isISODate, todayISO, weekStart } from '../../domain/date'
 import { emptyDay, summarizeDay } from '../../domain/day'
+import { plannedMinutes, stampedMinutes } from '../../domain/dayTotal'
 import { endTimes, templateMinutes } from '../../domain/endTimes'
 import { expectedEnd, forecastWorked } from '../../domain/forecast'
 import { holidayOn, type Holiday } from '../../domain/holidays'
@@ -42,8 +43,10 @@ export function DayPage({ date }: { date: ISODate }) {
   const timelineBlocks = layoutTimeline(day, summary.allocation, nowMinutes, expected)?.blocks ?? []
   const holiday = holidayOn(date, settings)
   const target = targetMinutes(date, settings, holiday)
-  // Ein noch unberührter Tag (nur Vorlage angezeigt) gilt als „noch nichts erfasst“.
-  const recorded = stored ? summary.worked : null
+  // Oben zählt nur Gestempeltes – geplante Blöcke (Vorlage) sind noch nicht gearbeitet.
+  // Verteilung und Zeitleiste rechnen weiter mit dem Plan (stabile Skala).
+  const recorded = stored ? stampedMinutes(day, nowMinutes) : null
+  const planned = plannedMinutes(day)
   const balance: DayBalance = {
     target,
     dayDiff: (recorded ?? 0) - target,
@@ -53,7 +56,7 @@ export function DayPage({ date }: { date: ISODate }) {
       expected,
       worked: forecastWorked(day, expected.end),
       dayDiff: forecastWorked(day, expected.end) - target,
-      week: weekSummary(weekDays, date, settings, today, expected.end),
+      week: weekSummary(weekDays, date, settings, today, expected.end, true),
     },
     // Heute: bis wann für Soll bzw. Ziel (Vorlage, z.B. 9:00) arbeiten – mit 30 min Pause
     endTimes: nowMinutes === null ? null : endTimes(stored ?? emptyDay(date), nowMinutes),
@@ -69,7 +72,8 @@ export function DayPage({ date }: { date: ISODate }) {
         day={day}
         isToday={isToday}
         nowMinutes={nowMinutes}
-        worked={summary.worked}
+        worked={recorded}
+        planned={planned}
         balance={balance}
         onChange={change}
       />

@@ -37,7 +37,10 @@ interface Props {
   day: Day
   isToday: boolean
   nowMinutes: Minutes | null
+  /** Gestempelte Zeit (ohne geplante Blöcke); null = noch nichts gestempelt */
   worked: Minutes | null
+  /** Noch geplante Zeit (graue Vorlage-Blöcke) – nur als Hinweis */
+  planned: Minutes
   balance: DayBalance
   onChange: (fn: (day: Day) => Day) => void
 }
@@ -47,7 +50,7 @@ const MODES = [
   { value: 'total' as const, label: 'Gesamtzeit', title: 'Arbeitszeit direkt eintragen' },
 ]
 
-export function TimeSection({ day, isToday, nowMinutes, worked, balance, onChange }: Props) {
+export function TimeSection({ day, isToday, nowMinutes, worked, planned, balance, onChange }: Props) {
   const setMode = (mode: TimeMode) =>
     onChange((d) => ({
       ...d,
@@ -91,7 +94,12 @@ export function TimeSection({ day, isToday, nowMinutes, worked, balance, onChang
       )}
 
       <div className="worked-total">
-        <span>{day.timeMode === 'blocks' && hasPlannedBlocks(day) ? 'Gearbeitet (inkl. geplant)' : 'Gearbeitet'}</span>
+        {planned > 0 && (
+          <span className="muted small" data-testid="planned-total" title="Graue Blöcke aus der Vorlage – zählen erst, wenn gestempelt">
+            + {formatDuration(planned)} geplant
+          </span>
+        )}
+        <span>Gearbeitet</span>
         <strong className="num" data-testid="worked-total">
           {worked === null ? '–' : formatDuration(worked)}
         </strong>
@@ -100,7 +108,7 @@ export function TimeSection({ day, isToday, nowMinutes, worked, balance, onChang
   )
 }
 
-function BlocksEditor({ day, isToday, nowMinutes, onChange }: Omit<Props, 'worked' | 'balance'>) {
+function BlocksEditor({ day, isToday, nowMinutes, onChange }: Omit<Props, 'worked' | 'planned' | 'balance'>) {
   const analysis = analyzeBlocks(day.blocks, nowMinutes)
   const running = day.blocks.find((b) => b.end === null)
   const isRunning = (b: TimeBlock) => b.end === null && analysis.running

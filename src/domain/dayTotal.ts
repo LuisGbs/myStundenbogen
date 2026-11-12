@@ -65,6 +65,26 @@ export function workedMinutes(day: Day, nowMinutes: Minutes | null = null): Minu
   return analyzeBlocks(day.blocks, nowMinutes).total
 }
 
+/**
+ * Wirklich gearbeitete (gestempelte) Zeit: wie `workedMinutes`, aber ohne die grau
+ * geplanten Blöcke der Vorlage. null = noch nichts gestempelt. Für Anzeigen wie
+ * „Gearbeitet“, Tages- und Wochensaldo; Verteilung und Zeitleiste rechnen weiter mit
+ * dem Plan (stabile Skala).
+ */
+export function stampedMinutes(day: Day, nowMinutes: Minutes | null = null): Minutes | null {
+  if (day.timeMode === 'total') return day.totalMinutes
+  const real = day.blocks.filter((b) => !b.planned)
+  if (real.length === 0) return null
+  return analyzeBlocks(real, nowMinutes).total
+}
+
+/** Noch geplante (nicht gestempelte) Zeit des Tages, z.B. der Nachmittag aus der Vorlage. */
+export function plannedMinutes(day: Day): Minutes {
+  if (day.timeMode === 'total') return 0
+  const planned = day.blocks.filter((b) => b.planned)
+  return planned.length ? analyzeBlocks(planned).total : 0
+}
+
 /** Block-ID, wenn der Tag nur eine Gesamtzeit hat (ein einziger Block ohne Uhrzeit). */
 export const TOTAL_BLOCK_ID = 'gesamt'
 
