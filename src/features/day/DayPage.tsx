@@ -28,8 +28,10 @@ export function DayPage({ date }: { date: ISODate }) {
   const today = todayISO()
   const isToday = date === today
   const hasRunningBlock = !!stored?.blocks.some((b) => b.end === null)
-  const now = useNow(isToday ? (hasRunningBlock ? 20_000 : 60_000) : null)
   const monday = weekStart(date)
+  // Auch an anderen Tagen derselben Woche läuft heute im Wochenbalken mit
+  const todayInWeek = today >= monday && today <= addDays(monday, 6)
+  const now = useNow(isToday ? (hasRunningBlock ? 20_000 : 60_000) : todayInWeek ? 60_000 : null)
   const weekDays = useDaysInRange(monday, addDays(monday, 6))
 
   if (stored === undefined || !projects || !activityTypes || !settings || !weekDays) return null
@@ -48,13 +50,22 @@ export function DayPage({ date }: { date: ISODate }) {
   const recorded = stored ? stampedMinutes(day, nowMinutes) : null
   // Noch geplant: graue Vorlage-Blöcke + Rest des laufenden Blocks bis „voraussichtlich gehen“
   const planned = plannedMinutes(day) + runningRest(expected, nowMinutes)
+  // Woche: heute immer mit echter Uhrzeit und Rest bis „voraussichtlich gehen“ – auch wenn ein
+  // anderer Tag angezeigt wird
+  const realNow = now.getHours() * 60 + now.getMinutes()
+  const todayStored = weekDays.find((d) => d.date === today)
+  const todayExpected = isToday
+    ? expected
+    : todayStored
+      ? expectedEnd(withPlannedBlocks(todayStored, settings), settings.dayTemplate ?? [], realNow)
+      : null
   const balance: DayBalance = {
     target,
     dayDiff: (recorded ?? 0) - target,
     recorded: recorded !== null,
-    week: weekSummary(weekDays, date, settings, today, nowMinutes),
+    week: weekSummary(weekDays, date, settings, today, realNow),
     // Wochenbalken Tag für Tag: gestempelt blau, Rest von heute und kommende Tage hellgrau
-    weekBars: weekBreakdown(weekDays, date, settings, today, nowMinutes, expected?.end ?? null),
+    weekBars: weekBreakdown(weekDays, date, settings, today, realNow, todayExpected?.end ?? null),
     forecast: expected && {
       expected,
       worked: forecastWorked(day, expected.end),
