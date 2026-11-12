@@ -5,7 +5,7 @@ import { Icon } from '../../components/Icon'
 import { CommitInput } from '../../components/inputs'
 import { SortGrip } from '../../components/SortGrip'
 import { useSortDrag } from '../../components/useSortDrag'
-import { createTask, reorderTask, setTaskStarred, updateTask } from '../../storage/repo'
+import { createTask, noteToItem, reorderTask, setTaskStarred, updateTask } from '../../storage/repo'
 
 interface Props {
   node: TaskNode
@@ -81,6 +81,7 @@ export function TaskCard({ node, grip, onToggle, onDelete }: Props) {
           type="button"
           className={`icon-btn icon-btn--subtle${task.note.trim() ? ' has-note' : ''}`}
           aria-label="Notiz zur Aufgabe"
+          title="Notiz zur Aufgabe (kein Stichpunkt) – Stichpunkte unten mit „+ Stichpunkt“"
           aria-expanded={showNote}
           onClick={() => setNoteOpen(!noteOpen)}
         >
@@ -96,20 +97,6 @@ export function TaskCard({ node, grip, onToggle, onDelete }: Props) {
           <Icon name="trash" />
         </button>
       </div>
-
-      {showNote && (
-        <CommitInput
-          className="input task-card__note"
-          aria-label="Notiz zur Aufgabe"
-          placeholder="Notiz, z.B. Ticket oder Ansprechpartner"
-          autoFocus={noteOpen && task.note.trim() === ''}
-          value={task.note}
-          onCommit={(text) => {
-            void updateTask(task.id, { note: text.trim() })
-            return text.trim()
-          }}
-        />
-      )}
 
       {items.length > 0 && (
         <ul
@@ -151,6 +138,39 @@ export function TaskCard({ node, grip, onToggle, onDelete }: Props) {
             </li>
           ))}
         </ul>
+      )}
+
+      {showNote && (
+        <div className="task-card__note-row">
+          <span className="task-card__note-label">
+            <Icon name="note" size={12} /> Notiz
+          </span>
+          <CommitInput
+            className="input task-card__note"
+            aria-label="Notiz zur Aufgabe"
+            placeholder="z.B. Ticket oder Ansprechpartner – Unterpunkte bitte als „+ Stichpunkt“"
+            autoFocus={noteOpen && task.note.trim() === ''}
+            value={task.note}
+            onCommit={(text) => {
+              void updateTask(task.id, { note: text.trim() })
+              return text.trim()
+            }}
+          />
+          {task.note.trim() && (
+            <button
+              type="button"
+              className="btn btn--ghost btn--small"
+              aria-label="Notiz als Stichpunkt übernehmen"
+              title="War als Unterpunkt gemeint? Notiz in einen Stichpunkt (mit Häkchen) umwandeln"
+              onClick={() => {
+                setNoteOpen(false)
+                void noteToItem(task.id)
+              }}
+            >
+              → Stichpunkt
+            </button>
+          )}
+        </div>
       )}
 
       {!task.done && (

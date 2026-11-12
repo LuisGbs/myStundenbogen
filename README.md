@@ -19,6 +19,7 @@ Persönliche Web-App, um jeden Tag schnell festzuhalten, **wie lange** gearbeite
 - **Standard-Tätigkeit:** Je Projekt (und in der Standardliste) lässt sich eine Tätigkeit per „Standard“ festlegen – sie wird beim Buchen vorgewählt (neue Zeile, Zeitleiste, „Gerade“). Ohne Festlegung gilt die erste aktive; die Reihenfolge bleibt unverändert.
 - **Notiz bei „Gerade“:** Während ein Projekt läuft, steht direkt in der Karte ein Notizfeld für die laufende Buchung. ▶ neben einer offenen Aufgabe (oder einem Stichpunkt) unter „Offen bei …“ hängt deren Titel an diese Notiz – so sieht man im Monat, woran gearbeitet wurde. Notizen gibt es weiter auch an jeder Zeile (✎) und im Zeitleisten-Panel.
 - **Neuer Abschnitt bei „Gerade“:** Das laufende Projekt nochmal antippen (oder „Neu beginnen“) startet einen neuen Abschnitt mit derselben Tätigkeit – der bisherige bleibt mit seiner Zeit und Notiz als eigene Zeile stehen, der Cursor steht in der neuen, leeren Notiz.
+- **Notiz vs. Stichpunkt:** Die Notiz einer Aufgabe (✎) steht beschriftet, kursiv und gestrichelt unter den Stichpunkten; „→ Stichpunkt“ wandelt eine versehentlich als Notiz eingetragene Zeile in einen abhakbaren Stichpunkt um.
 - **Aufgaben-Zähler:** In der Projektspalte stehen je Projekt die offenen Aufgaben mit ★ und ohne getrennt.
 - **Monatstabelle**
   - Tage nach rechts, Projekte und Tätigkeiten nach unten, Summen, Hinweise auf offene Tage.

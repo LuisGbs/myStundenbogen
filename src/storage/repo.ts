@@ -356,6 +356,18 @@ export async function updateTask(id: string, patch: Partial<Pick<Task, 'title' |
   await db.tasks.update(id, patch)
 }
 
+/** Notiz einer Aufgabe als Stichpunkt übernehmen (hinten anhängen) und die Notiz leeren. */
+export async function noteToItem(taskId: string): Promise<Task | null> {
+  return db.transaction('rw', db.tasks, async () => {
+    const task = await db.tasks.get(taskId)
+    const title = task?.note.trim()
+    if (!task || !title) return null
+    const item = await createTask({ projectId: task.projectId, parentId: task.id, title })
+    await db.tasks.update(task.id, { note: '' })
+    return item
+  })
+}
+
 /** Abhaken bzw. wieder öffnen (`today` = Tag des Abhakens). */
 export async function setTaskDone(id: string, done: boolean, today: ISODate): Promise<void> {
   await db.tasks.update(id, { done, doneAt: done ? today : null })

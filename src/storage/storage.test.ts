@@ -21,6 +21,7 @@ import {
   reorderTask,
   restoreTasks,
   setTaskDone,
+  noteToItem,
   setTaskStarred,
   importTasks,
   undoTaskImport,
@@ -300,6 +301,17 @@ describe('Aufgaben', () => {
     expect(await db.tasks.count()).toBe(0)
     await restoreTasks(removed)
     expect(await db.tasks.count()).toBe(2)
+  })
+
+  it('Notiz als Stichpunkt übernehmen: hinten angehängt, Notiz leer', async () => {
+    const p = await createProject({ name: 'Epis' })
+    const a = await createTask({ projectId: p.id, parentId: null, title: 'BOXer Baukasten' })
+    await createTask({ projectId: p.id, parentId: a.id, title: 'Meeting' })
+    await db.tasks.update(a.id, { note: ' Rollen ' })
+    const item = await noteToItem(a.id)
+    expect(item).toMatchObject({ parentId: a.id, title: 'Rollen', sortOrder: 1, done: false })
+    expect((await db.tasks.get(a.id))?.note).toBe('')
+    expect(await noteToItem(a.id)).toBeNull() // leere Notiz: nichts
   })
 
   it('Projekt löschen löscht seine Aufgaben mit', async () => {
