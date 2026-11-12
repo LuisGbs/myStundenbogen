@@ -36,4 +36,13 @@ test('Wochenbalken Tag für Tag: Gestempeltes blau, heute Rest + kommende Tage h
   await expect(page.getByLabel('Block 1 Ende')).toHaveValue('')
   await expect(page.getByTestId('planned-total')).toHaveText('+ 6:40 geplant')
   await expect(page.getByTestId('worked-total')).toHaveText('2:07')
+
+  // Andere Tage derselben Woche: heute läuft im Wochenbalken genauso mit
+  for (const other of ['2026-11-13', '2026-11-09']) {
+    await page.goto(`/#/tag/${other}`)
+    await expect(page.getByTestId('week-worked')).toHaveText('20:07')
+    await expect.poll(titles).toContain('Do 12.11.: 2:07 gestempelt')
+    await expect.poll(titles).toContain('Do 12.11.: 6:40 geplant')
+    await expect(page.getByTestId('week-forecast')).toHaveText('≈ 35:47 h')
+  }
 })
