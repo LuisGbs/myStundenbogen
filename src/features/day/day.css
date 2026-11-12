@@ -810,6 +810,15 @@
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border);
+}
+
+/* Pausenhinweis bleibt in der Gehen-Zeile und bricht lieber in sich um */
+.end-times__note {
+  flex: 1 1 9rem;
+  min-width: 0;
+  line-height: 1.25;
 }
 
 .end-times__title {
