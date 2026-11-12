@@ -893,3 +893,12 @@ button.end-times__tile:focus-visible {
 .block-row__ghost:focus-within::after {
   display: none;
 }
+
+/* Wochensumme laut Plan am Ende des grauen Teils */
+.week-line__total {
+  flex: none;
+  margin-left: -0.6rem;
+  padding-top: 0.1rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
