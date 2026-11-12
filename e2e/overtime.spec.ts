@@ -38,7 +38,7 @@ test('Soll, Tages- und Wochendifferenz, Feiertage je Arbeitsort (ohne Gesamtsald
   // Di: halber Feiertag → Soll 4:09
   await page.goto('/#/tag/2026-10-13')
   await expect(page.getByTestId('holiday-badge')).toContainText('Firmenanlass (½)')
-  await expect(page.getByTestId('balance-line')).toContainText('Soll 4:09')
+  await expect(page.getByTestId('day-totals')).toContainText('Soll 4:09')
   await page.getByRole('radio', { name: 'Gesamtzeit' }).click()
   await page.getByLabel('Gesamte Arbeitszeit').fill('4:09')
   await page.getByLabel('Gesamte Arbeitszeit').press('Enter')
@@ -54,7 +54,7 @@ test('Soll, Tages- und Wochendifferenz, Feiertage je Arbeitsort (ohne Gesamtsald
   // Mi: noch nichts erfasst (nur Vorlage)
   await page.goto('/#/tag/2026-10-14')
   await expect(page.getByTestId('planned-block')).toHaveCount(2)
-  await expect(page.getByTestId('balance-line')).toContainText('noch nichts erfasst')
+  await expect(page.getByTestId('day-totals')).toContainText('noch nichts erfasst')
   await expect(page.getByTestId('day-diff')).toHaveText('−8:18')
 
   // Monat: Soll-Zeile, Differenz, Feiertag markiert
