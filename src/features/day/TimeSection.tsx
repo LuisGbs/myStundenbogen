@@ -503,6 +503,15 @@ function WeekLine({ week, bars }: { week: WeekSummary; bars: WeekDayBar[] }) {
             {share(p.minutes) >= 4 ? p.day : ''}
           </span>
         ))}
+        {plannedTotal > 0 && (
+          <span
+            className="week-line__total"
+            data-testid="week-forecast"
+            title={`So viele Stunden wären es am Ende der Woche laut Plan (${formatDuration(week.worked)} gestempelt + ${formatDuration(plannedTotal)} geplant)`}
+          >
+            ≈ {formatDuration(forecast)} h
+          </span>
+        )}
       </div>
     </div>
   )

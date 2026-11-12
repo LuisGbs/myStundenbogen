@@ -27,6 +27,7 @@ test('Wochenbalken Tag für Tag: Gestempeltes blau, heute Rest + kommende Tage h
     ])
   await expect(page.getByTestId('week-worked')).toHaveText('20:07')
   await expect(page.getByTestId('week-planned')).toHaveText('(+ 15:40 geplant bis So)')
+  await expect(page.getByTestId('week-forecast')).toHaveText('≈ 35:47 h')
   await expect(pieces.nth(1)).toHaveClass(/is-alt/)
   await expect(pieces.nth(3)).toHaveClass(/is-planned/)
   // laufender Block: Rest bis 11:33 als Hinweis; unten zählt er zum Geplanten mit
