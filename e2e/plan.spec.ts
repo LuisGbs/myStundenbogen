@@ -15,7 +15,9 @@ test('geplanter Arbeitstag: Vorlage grau vorbelegt, Projekte verteilen, echte St
   await expect(page.getByTestId('plan-note')).toContainText('noch nicht gestempelt')
   await expect(page.getByLabel('Block 1 Beginn')).toHaveValue('07:00')
   await expect(page.getByLabel('Block 2 Ende')).toHaveValue('16:30')
-  await expect(page.getByTestId('worked-total')).toHaveText('9:00')
+  // Geplantes zählt noch nicht als gearbeitet – steht nur als Hinweis daneben
+  await expect(page.getByTestId('worked-total')).toHaveText('–')
+  await expect(page.getByTestId('planned-total')).toHaveText('+ 9:00 geplant')
   const timeline = page.getByTestId('timeline')
   await expect(timeline.locator('.timeline__block.is-planned')).toHaveCount(2)
   await expect(timeline.locator('.timeline__labels')).toContainText('geplant')
@@ -34,11 +36,15 @@ test('geplanter Arbeitstag: Vorlage grau vorbelegt, Projekte verteilen, echte St
   await page.getByLabel('Block 1 Beginn').fill('07:12')
   await expect(planned).toHaveCount(1)
   await expect(page.getByTestId('plan-note')).toBeVisible()
+  // gestempelt 07:12–11:33 = 4:21, der Nachmittag (4:27) ist noch geplant
+  await expect(page.getByTestId('worked-total')).toHaveText('4:21')
+  await expect(page.getByTestId('planned-total')).toHaveText('+ 4:27 geplant')
   await page.getByLabel('Block 2 Ende').fill('16:00')
   await expect(planned).toHaveCount(0)
   await expect(page.getByTestId('plan-note')).toHaveCount(0)
   await expect(timeline.getByTestId('segment-Revit · Büro')).toBeVisible()
   await expect(page.getByTestId('worked-total')).toHaveText('8:18')
+  await expect(page.getByTestId('planned-total')).toHaveCount(0)
 
   // Samstag → keine Vorlage
   await page.goto('/#/tag/2026-10-17')
@@ -56,7 +62,7 @@ test('geplanter Arbeitstag: Vorlage grau vorbelegt, Projekte verteilen, echte St
   await page.getByLabel('Vorlage Block 2 Ende').fill('16:00')
   await page.goto('/#/tag/2026-10-16')
   await expect(page.getByLabel('Block 2 Ende')).toHaveValue('16:00')
-  await expect(page.getByTestId('worked-total')).toHaveText('8:30')
+  await expect(page.getByTestId('planned-total')).toHaveText('+ 8:30 geplant')
 
   // Feiertag (Auffahrt 2026, Basel-Landschaft) → keine Vorlage
   await page.goto('/#/tag/2026-05-14')

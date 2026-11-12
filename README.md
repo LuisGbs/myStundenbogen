@@ -20,6 +20,7 @@ Persönliche Web-App, um jeden Tag schnell festzuhalten, **wie lange** gearbeite
 - **Notiz bei „Gerade“:** Während ein Projekt läuft, steht direkt in der Karte ein Notizfeld für die laufende Buchung. ▶ neben einer offenen Aufgabe (oder einem Stichpunkt) unter „Offen bei …“ hängt deren Titel an diese Notiz – so sieht man im Monat, woran gearbeitet wurde. Notizen gibt es weiter auch an jeder Zeile (✎) und im Zeitleisten-Panel.
 - **Neuer Abschnitt bei „Gerade“:** Das laufende Projekt nochmal antippen (oder „Neu beginnen“) startet einen neuen Abschnitt mit derselben Tätigkeit – der bisherige bleibt mit seiner Zeit und Notiz als eigene Zeile stehen, der Cursor steht in der neuen, leeren Notiz.
 - **Notiz vs. Stichpunkt:** Die Notiz einer Aufgabe (✎) steht beschriftet, kursiv und gestrichelt unter den Stichpunkten; „→ Stichpunkt“ wandelt eine versehentlich als Notiz eingetragene Zeile in einen abhakbaren Stichpunkt um.
+- **Gearbeitet = gestempelt:** Geplante (graue) Blöcke der Vorlage zählen oben nicht als gearbeitet, auch nicht im Tages- und Wochensaldo – sie stehen nur klein als „+ 4:27 geplant“ daneben. Zeitleiste und „voraussichtlich gehen“ rechnen weiter mit dem Plan.
 - **Aufgaben-Zähler:** In der Projektspalte stehen je Projekt die offenen Aufgaben mit ★ und ohne getrennt.
 - **Monatstabelle**
   - Tage nach rechts, Projekte und Tätigkeiten nach unten, Summen, Hinweise auf offene Tage.

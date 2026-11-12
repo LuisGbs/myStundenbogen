@@ -33,6 +33,19 @@ describe('Wochenübersicht', () => {
     expect(w.toMax).toBe(2700 - 1080) // noch 27:00 bis 45:00
   })
 
+  it('geplante Blöcke zählen nicht als gearbeitet – nur in der Vorhersage', () => {
+    const today: Day = {
+      ...emptyDay('2026-10-21'),
+      blocks: [
+        { id: 'a', start: '07:13', end: null },
+        { id: 'plan-1', start: '12:03', end: '16:30', planned: true },
+      ],
+    }
+    const days = [worked('2026-10-19', 540), today]
+    expect(weekSummary(days, '2026-10-21', week, '2026-10-21', 7 * 60 + 43).worked).toBe(540 + 30)
+    expect(weekSummary(days, '2026-10-21', week, '2026-10-21', 11 * 60 + 33, true).worked).toBe(540 + 260 + 267)
+  })
+
   it('Feiertage senken das Wochen-Soll, Überschreitung wird negativ', () => {
     const days = ['2026-05-11', '2026-05-12', '2026-05-13', '2026-05-15', '2026-05-16'].map((d) => worked(d, 600))
     const w = weekSummary(days, '2026-05-14', week, '2026-05-20') // Auffahrt am Do

@@ -1,5 +1,5 @@
 import { addDays, isoWeekNumber, weekdayIndex, weekStart } from './date'
-import { workedMinutes } from './dayTotal'
+import { stampedMinutes, workedMinutes } from './dayTotal'
 import { holidayMap, type Holiday } from './holidays'
 import type { Day, ISODate, Minutes, Settings } from './types'
 
@@ -59,6 +59,8 @@ export function weekSummary(
   settings: TargetSettings & Pick<Settings, 'weeklyMaxMinutes'>,
   today: ISODate,
   nowMinutes: Minutes | null = null,
+  /** Geplante Blöcke mitzählen (nur für die Vorhersage „voraussichtlich“) */
+  includePlanned = false,
 ): WeekSummary {
   const from = weekStart(date)
   const to = addDays(from, 6)
@@ -68,7 +70,10 @@ export function weekSummary(
   for (let d = from; d <= to; d = addDays(d, 1)) {
     target += targetMinutes(d, settings, holiday(d))
     const day = days.find((x) => x.date === d)
-    if (day) worked += workedMinutes(day, d === today ? nowMinutes : null) ?? 0
+    if (day) {
+      const now = d === today ? nowMinutes : null
+      worked += (includePlanned ? workedMinutes(day, now) : stampedMinutes(day, now)) ?? 0
+    }
   }
   const max = settings.weeklyMaxMinutes ?? DEFAULT_WEEKLY_MAX
   return { from, to, weekNumber: isoWeekNumber(date), worked, target, max, toTarget: target - worked, toMax: max - worked }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { emptyDay } from './day'
-import { analyzeBlocks, workedMinutes } from './dayTotal'
+import { analyzeBlocks, plannedMinutes, stampedMinutes, workedMinutes } from './dayTotal'
 import type { TimeBlock } from './types'
 
 const block = (id: string, start: string, end: string | null): TimeBlock => ({ id, start, end })
@@ -51,5 +51,30 @@ describe('workedMinutes', () => {
     }
     expect(workedMinutes(day)).toBe(240)
     expect(workedMinutes({ ...day, timeMode: 'total' })).toBe(498)
+  })
+})
+
+describe('gestempelt vs. geplant', () => {
+  // 07:13 läuft (eingestempelt), Nachmittag noch aus der Vorlage geplant
+  const day = {
+    ...emptyDay('2026-11-12'),
+    blocks: [
+      { id: 'a', start: '07:13', end: null },
+      { id: 'plan-1', start: '12:03', end: '16:30', planned: true },
+    ],
+  }
+  const at = (h: number, m: number) => h * 60 + m
+
+  it('oben zählt nur Gestempeltes; der Plan bleibt separat (und in workedMinutes für Verteilung/Skala)', () => {
+    expect(stampedMinutes(day, at(7, 42))).toBe(29)
+    expect(plannedMinutes(day)).toBe(267)
+    expect(workedMinutes(day, at(7, 42))).toBe(29 + 267)
+  })
+
+  it('nur geplant → noch nichts gestempelt; Gesamtzeit-Modus zählt wie bisher', () => {
+    const onlyPlan = { ...day, blocks: [day.blocks[1]] }
+    expect(stampedMinutes(onlyPlan)).toBeNull()
+    expect(stampedMinutes({ ...day, timeMode: 'total' as const, totalMinutes: 480 })).toBe(480)
+    expect(plannedMinutes({ ...day, timeMode: 'total' as const })).toBe(0)
   })
 })
