@@ -341,7 +341,7 @@ function EndTimesView({
   if (ends.state === 'break' && !ends.breakDone) note = `Pause läuft – weiter frühestens um ${minutesToClock(ends.resume)}`
   else if (ends.state === 'break') note = 'wenn du jetzt wieder kommst · Pause ✓'
   else if (ends.state === 'not-started') note = `wenn du jetzt kommst · inkl. ${MIN_BREAK_MINUTES} min Pause`
-  else if (ends.breakAdded > 0) note = `inkl. ${MIN_BREAK_MINUTES} min Pause (noch nicht genommen)`
+  else if (ends.breakAdded > 0) note = `inkl. ${MIN_BREAK_MINUTES} min Pause (noch offen)`
   else note = 'Pause ✓'
 
   return (
@@ -413,7 +413,7 @@ function EndTimesView({
           )}
         </span>
       )}
-      <span className="muted small" data-testid="end-note">
+      <span className="muted small end-times__note" data-testid="end-note">
         {note}
       </span>
     </div>
