@@ -121,8 +121,32 @@
   color: var(--text-muted);
 }
 
-.task-card__note {
-  margin-left: 3.2rem;
+/* Notiz: klar anders als Stichpunkte (keine Häkchen, kursiv, gestrichelt) */
+.task-card__note-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-left: 1.6rem;
+}
+
+.task-card__note-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  flex: none;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.input.task-card__note {
+  flex: 1;
+  height: 30px;
+  font-size: 0.85rem;
+  font-style: italic;
+  border-style: dashed;
+  background: transparent;
 }
 
 .task-items {

@@ -60,6 +60,21 @@ test('Aufgaben-Reiter: Aufgaben + Stichpunkte, abhaken, sortieren, löschen/rüc
   await expect(cards).toHaveCount(1) // offen nur noch „Mail an Bauherr“
   await expect(page.getByTestId('tasks-done')).toContainText('Erledigt (1)')
 
+  // Notiz ist klar als Notiz erkennbar und lässt sich in einen Stichpunkt umwandeln
+  const mail = cards.nth(0)
+  await mail.getByRole('button', { name: 'Notiz zur Aufgabe' }).click()
+  const noteField = mail.getByLabel('Notiz zur Aufgabe', { exact: true }).last()
+  await noteField.fill('Rollen')
+  await noteField.press('Enter')
+  await expect(mail.locator('.task-card__note-row')).toContainText('Notiz')
+  await expect(mail.getByLabel('Stichpunkt', { exact: true })).toHaveCount(0)
+  await mail.getByRole('button', { name: 'Notiz als Stichpunkt übernehmen' }).click()
+  await expect(mail.getByLabel('Stichpunkt', { exact: true })).toHaveCount(1)
+  await expect(mail.getByLabel('Stichpunkt', { exact: true })).toHaveValue('Rollen')
+  await expect(mail.getByLabel('Rollen erledigt')).not.toBeChecked()
+  await expect(mail.getByTestId('task-progress')).toHaveText('0/1')
+  await expect(mail.locator('.task-card__note-row')).toHaveCount(0)
+
   // Sortieren per Pfeiltaste am Griff, löschen + rückgängig
   await newTask.fill('Termin vereinbaren')
   await newTask.press('Enter')
