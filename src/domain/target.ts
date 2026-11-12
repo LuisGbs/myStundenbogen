@@ -1,6 +1,8 @@
 import { addDays, isoWeekNumber, weekdayIndex, weekStart } from './date'
+import { emptyDay } from './day'
 import { stampedMinutes, workedMinutes } from './dayTotal'
 import { holidayMap, type Holiday } from './holidays'
+import { withPlannedBlocks } from './plan'
 import type { Day, ISODate, Minutes, Settings } from './types'
 
 /** Höchstarbeitszeit pro Woche (Standard 45 h, Arbeitsgesetz CH für Büropersonal). */
@@ -77,4 +79,51 @@ export function weekSummary(
   }
   const max = settings.weeklyMaxMinutes ?? DEFAULT_WEEKLY_MAX
   return { from, to, weekNumber: isoWeekNumber(date), worked, target, max, toTarget: target - worked, toMax: max - worked }
+}
+
+/** Ein Tag im Wochenbalken: gestempelt (blau) und noch geplant (hellgrau). */
+export interface WeekDayBar {
+  date: ISODate
+  stamped: Minutes
+  planned: Minutes
+  isToday: boolean
+  isFuture: boolean
+}
+
+/**
+ * Wochenbalken Tag für Tag (Mo–So). Vergangene Tage: nur Gestempeltes (ein
+ * vergessener Tag bleibt leer, nicht „geplant“). Heute: Gestempeltes plus der Rest
+ * bis „voraussichtlich gehen“ (`expectedEnd`) und die graue Vorlage. Kommende Tage:
+ * Eingetragenes bzw. die Vorlage, alles als geplant (Wochenende/ganze Feiertage ohne Vorlage = 0).
+ */
+export function weekBreakdown(
+  days: Day[],
+  date: ISODate,
+  settings: TargetSettings & Pick<Settings, 'dayTemplate'>,
+  today: ISODate,
+  nowMinutes: Minutes | null,
+  expectedEnd: Minutes | null = null,
+): WeekDayBar[] {
+  const from = weekStart(date)
+  const result: WeekDayBar[] = []
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(from, i)
+    const stored = days.find((x) => x.date === d)
+    const isToday = d === today
+    const isFuture = d > today
+    if (!isToday && !isFuture) {
+      result.push({ date: d, stamped: stored ? (stampedMinutes(stored) ?? 0) : 0, planned: 0, isToday, isFuture })
+      continue
+    }
+    const day = withPlannedBlocks(stored ?? emptyDay(d), settings)
+    if (isToday) {
+      const stamped = stampedMinutes(day, nowMinutes) ?? 0
+      const withPlan = workedMinutes(day, expectedEnd ?? nowMinutes) ?? 0
+      result.push({ date: d, stamped, planned: Math.max(0, withPlan - stamped), isToday, isFuture })
+    } else {
+      // Kommendes ist immer Plan – auch schon eingetragene Zeiten (z.B. Gesamtzeit 0:00 für Urlaub)
+      result.push({ date: d, stamped: 0, planned: workedMinutes(day) ?? 0, isToday, isFuture })
+    }
+  }
+  return result
 }
